@@ -189,8 +189,10 @@ with st.form("form_surat_tugas", clear_on_submit=False):
             p_nip = detail.get("nip", "")
             p_pangkat = detail.get("pangkat", "")
             p_jabatan = detail.get("jabatan", "")
+            p_num = len(data_petugas_terpilih) + 1
             data_petugas_terpilih.append({
-                "no": len(data_petugas_terpilih) + 1,
+                "no": p_num,
+                "label_nama": "Nama",  # Will be adjusted after loop
                 "nama": sel_nama,
                 "nip": p_nip,
                 "pangkat": p_pangkat,
@@ -299,6 +301,10 @@ if submit_simpan:
                 ws_target.append_row(row_payload, value_input_option="USER_ENTERED")
                 st.success(f"Berhasil menyimpan Surat Tugas No. Urut {next_no} ke Database Spreadsheet!")
                 
+                    # Sesuaikan label nama petugas jika lebih dari 1 orang
+    for p in data_petugas_terpilih:
+        p["label_nama"] = f"{p['no']}. Nama" if len(data_petugas_terpilih) > 1 else "Nama"
+
                 st.session_state["last_submitted_data"] = {
                     "no_urut": next_no,
                     "pt_1": pt_1,
