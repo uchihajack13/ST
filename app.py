@@ -6,7 +6,7 @@ import streamlit.components.v1 as components
 import gspread
 from google.oauth2.service_account import Credentials
 import docx
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ==========================================
@@ -140,9 +140,11 @@ def load_riwayat_data():
         
         data_rows = all_rows[1:]
         riwayat = []
-        for r_raw in reversed(data_rows):
+        # Catat nomor baris fisik di Google Sheets (header = baris 1, data mulai baris 2)
+        for orig_idx, r_raw in enumerate(data_rows):
             if not r_raw or not r_raw[0].strip():
                 continue
+            sheet_row_num = orig_idx + 2
             r = r_raw + [""] * (37 - len(r_raw))
             
             daftar_petugas = []
@@ -168,6 +170,7 @@ def load_riwayat_data():
             
             riwayat.append({
                 "label": label_display,
+                "row_num": sheet_row_num,
                 "no_urut": no_st,
                 "pt_1": pt_1,
                 "no_surat_1": r[2].strip(),
@@ -185,7 +188,7 @@ def load_riwayat_data():
                 "alamat_pabrik_2": r[34].strip(),
                 "daftar_petugas": daftar_petugas
             })
-        return riwayat
+        return list(reversed(riwayat))
     except Exception as e:
         return []
 
@@ -315,12 +318,13 @@ def generate_docx_buffer(data_gen):
         for r in p.runs:
             r.font.name = "Arial"
                 
-    # Pastikan jarak tanda tangan elektronik di Word tetap lega (5 newlines)
+    # Pastikan jarak tanda tangan elektronik tetap lega & warna abu-abu resmi BSrE (#BFBFBF)
     c_elek = t_ttd.rows[2].cells[1]
     c_elek.text = "\n\n\n\n\nDitandatangani secara elektronik"
     for p in c_elek.paragraphs:
         for r in p.runs:
             r.font.name = "Arial"
+            r.font.color.rgb = RGBColor(191, 191, 191)
 
     c_nama = t_ttd.rows[3].cells[1]
     c_nama.text = data_gen["nama_pejabat_ttd"]
@@ -486,7 +490,7 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <!-- BLOK TANDA TANGAN DENGAN JARAK LEGAL TTE (75px) -->
+    <!-- BLOK TANDA TANGAN DENGAN WARNA RESMI TTE #BFBFBF -->
     <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
         <td style="width: 42%;"></td>
@@ -502,8 +506,8 @@ def render_preview_html(data):
               </td>
               <td style="text-align: left; vertical-align: top;">
                 {jab_txt}
-                <!-- Jeda lega 75px untuk stempel tanda tangan elektronik / barcode QR -->
-                <div style="margin-top: 75px; color: #555; font-size: 11.5px;">Ditandatangani secara elektronik</div>
+                <!-- Teks Ditandatangani secara elektronik dengan warna resmi #BFBFBF -->
+                <div style="margin-top: 75px; color: #bfbfbf; font-size: 11.5px;">Ditandatangani secara elektronik</div>
                 <div style="margin-top: 3px; font-weight: bold; color: #000;">{data['nama_pejabat_ttd']}</div>
               </td>
             </tr>
@@ -536,9 +540,9 @@ with st.sidebar:
     st.markdown("**Petunjuk Pengisian Cepat:**")
     st.caption("1. Isi Permohonan, maka Kegiatan Baku otomatis terisi.")
     st.caption("2. Gunakan tombol [+] jika ada lebih dari 1 petugas atau 2 pabrik.")
-    st.caption("3. Klik Simpan & Unduh Dokumen.")
+    st.caption("3. Tab Riwayat menyediakan fitur Cetak Ulang, Edit, dan Hapus.")
 
-tab_input, tab_riwayat = st.tabs(["📝 Input Surat Tugas Baru", "🕒 Riwayat & Cetak Ulang"])
+tab_input, tab_riwayat = st.tabs(["📝 Input Surat Tugas Baru", "🕒 Manajemen Data (Riwayat, Edit & Hapus)"])
 
 # ==========================================
 # TAB 1: FORM INPUT SURAT TUGAS BARU (EFISIEN MOBILE)
@@ -632,7 +636,6 @@ with tab_input:
 
     data_petugas_terpilih = []
     
-    # Render hanya sejumlah petugas yang aktif
     for i in range(1, st.session_state["num_petugas"] + 1):
         st.markdown(f"**👤 Petugas {i}**")
         sel_nama = st.selectbox(
@@ -661,7 +664,6 @@ with tab_input:
         cp2.text_input(f"Jabatan {i}", value=p_jabatan, disabled=True, key=f"dyn_jbt_{i}")
         st.write("")
 
-    # Tombol Tambah/Kurangi Petugas (Mobile Friendly)
     col_tambah_p, col_kurang_p = st.columns(2)
     with col_tambah_p:
         if st.button("➕ Tambah Petugas", disabled=(st.session_state["num_petugas"] >= 6), use_container_width=True):
@@ -709,7 +711,7 @@ with tab_input:
     st.divider()
     
     # -------------------------------------------------------------
-    # TOMBOL AKSI UTAMA
+    # TOMBOL AKSI UTAMA INPUT BARU
     # -------------------------------------------------------------
     btn_simpan_eksekusi = st.button("💾 Simpan ke Database Spreadsheet", type="primary", use_container_width=True)
 
@@ -815,11 +817,11 @@ with tab_input:
             st.error(f"Gagal membuat file Word: {e_dl}")
 
 # ==========================================
-# TAB 2: RIWAYAT & CETAK ULANG SURAT TUGAS
+# TAB 2: RIWAYAT, EDIT, HAPUS & CETAK ULANG
 # ==========================================
 with tab_riwayat:
-    st.subheader("🕒 Riwayat Penugasan & Cetak Ulang")
-    st.caption("Pilih penugasan dari database yang pernah direkam untuk melihat pratinjau dan mengunduh ulang dokumen resminya.")
+    st.subheader("🕒 Manajemen Data Surat Tugas (Cetak Ulang, Edit & Hapus)")
+    st.caption("Pilih penugasan dari database yang pernah direkam untuk mencetak ulang, mengedit data yang salah, atau menghapus data.")
     
     riwayat_list = load_riwayat_data()
     
@@ -828,62 +830,178 @@ with tab_riwayat:
     else:
         label_options = [item["label"] for item in riwayat_list]
         selected_label = st.selectbox("Cari & Pilih Surat Tugas:", options=label_options, index=0)
-        
         selected_item = next(item for item in riwayat_list if item["label"] == selected_label)
         
-        st.divider()
-        st.markdown("**Pengaturan Penandatangan untuk Cetak Ulang:**")
-        col_r_ttd1, col_r_ttd2 = st.columns(2)
+        # 3 Sub-Fitur Interaktif
+        subtab_cetak, subtab_edit, subtab_hapus = st.tabs([
+            "📥 Cetak Ulang Dokumen", 
+            "✏️ Edit Data Penugasan", 
+            "🗑️ Hapus dari Database"
+        ])
         
-        with col_r_ttd1:
-            tipe_ttd_r = st.radio(
-                "Format Penandatangan:",
-                options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
-                index=0,
-                key="r_tipe_ttd"
-            )
-            is_plh_r = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False, key="r_is_plh")
+        # -------------------------------------------------------------
+        # SUB-TAB A: CETAK ULANG
+        # -------------------------------------------------------------
+        with subtab_cetak:
+            st.markdown("**Pengaturan Penandatangan untuk Cetak Ulang:**")
+            col_r_ttd1, col_r_ttd2 = st.columns(2)
+            
+            with col_r_ttd1:
+                tipe_ttd_r = st.radio(
+                    "Format Penandatangan:",
+                    options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
+                    index=0,
+                    key="r_tipe_ttd"
+                )
+                is_plh_r = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False, key="r_is_plh")
 
-        with col_r_ttd2:
-            if tipe_ttd_r == "Kepala Kantor Langsung":
-                if is_plh_r:
-                    nama_ttd_r = st.selectbox(
-                        "Pilih Pejabat Plh. Kepala Kantor*:",
-                        options=[""] + list_pegawai,
-                        index=0,
-                        key="r_plh_kk"
-                    )
+            with col_r_ttd2:
+                if tipe_ttd_r == "Kepala Kantor Langsung":
+                    if is_plh_r:
+                        nama_ttd_r = st.selectbox(
+                            "Pilih Pejabat Plh. Kepala Kantor*:",
+                            options=[""] + list_pegawai,
+                            index=0,
+                            key="r_plh_kk"
+                        )
+                    else:
+                        nama_ttd_r = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores", key="r_def_kk")
                 else:
-                    nama_ttd_r = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores", key="r_def_kk")
-            else:
-                if is_plh_r:
-                    nama_ttd_r = st.selectbox(
-                        "Pilih Pejabat Plh. Kasubag Umum*:",
-                        options=[""] + list_pegawai,
-                        index=0,
-                        key="r_plh_subag"
-                    )
-                else:
-                    nama_ttd_r = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca", key="r_def_subag")
+                    if is_plh_r:
+                        nama_ttd_r = st.selectbox(
+                            "Pilih Pejabat Plh. Kasubag Umum*:",
+                            options=[""] + list_pegawai,
+                            index=0,
+                            key="r_plh_subag"
+                        )
+                    else:
+                        nama_ttd_r = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca", key="r_def_subag")
 
-        data_cetak_ulang = dict(selected_item)
-        data_cetak_ulang["tipe_ttd"] = tipe_ttd_r
-        data_cetak_ulang["is_plh"] = is_plh_r
-        data_cetak_ulang["nama_pejabat_ttd"] = nama_ttd_r if nama_ttd_r.strip() else "Kukuh Hanna Prapanca"
+            data_cetak_ulang = dict(selected_item)
+            data_cetak_ulang["tipe_ttd"] = tipe_ttd_r
+            data_cetak_ulang["is_plh"] = is_plh_r
+            data_cetak_ulang["nama_pejabat_ttd"] = nama_ttd_r if nama_ttd_r.strip() else "Kukuh Hanna Prapanca"
 
-        with st.expander("👁️ Pratinjau Dokumen Cetak Ulang (Klik untuk Buka/Tutup)", expanded=True):
-            components.html(render_preview_html(data_cetak_ulang), height=850, scrolling=True)
+            with st.expander("👁️ Pratinjau Dokumen Cetak Ulang (Klik untuk Buka/Tutup)", expanded=True):
+                components.html(render_preview_html(data_cetak_ulang), height=850, scrolling=True)
 
-        try:
-            buf_r = generate_docx_buffer(data_cetak_ulang)
-            file_name_r = f"Cetak_Ulang_ST_{data_cetak_ulang['no_urut']}_{data_cetak_ulang['pt_1'].replace(' ', '_')}.docx"
-            st.download_button(
-                label="📥 Unduh Ulang Surat Tugas (.docx)",
-                data=buf_r,
-                file_name=file_name_r,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                type="primary",
-                key="btn_dl_reprint"
+            try:
+                buf_r = generate_docx_buffer(data_cetak_ulang)
+                file_name_r = f"Cetak_Ulang_ST_{data_cetak_ulang['no_urut']}_{data_cetak_ulang['pt_1'].replace(' ', '_')}.docx"
+                st.download_button(
+                    label="📥 Unduh Ulang Surat Tugas (.docx)",
+                    data=buf_r,
+                    file_name=file_name_r,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    type="primary",
+                    key="btn_dl_reprint"
+                )
+            except Exception as e_r:
+                st.error(f"Gagal menyiapkan dokumen cetak ulang: {e_r}")
+
+        # -------------------------------------------------------------
+        # SUB-TAB B: EDIT DATA YANG SUDAH TERINPUT
+        # -------------------------------------------------------------
+        with subtab_edit:
+            st.markdown(f"**Edit Data Surat Tugas No. {selected_item['no_urut']} (Baris Spreadsheet: {selected_item['row_num']})**")
+            st.caption("Perubahan akan langsung memperbarui database Google Sheets secara real-time.")
+            
+            with st.form(f"form_edit_{selected_item['no_urut']}", clear_on_submit=False):
+                col_e1, col_e2 = st.columns(2)
+                with col_e1:
+                    idx_pt1 = list_perusahaan.index(selected_item["pt_1"]) if selected_item["pt_1"] in list_perusahaan else 0
+                    edit_pt1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=list_perusahaan, index=idx_pt1)
+                    edit_no_surat1 = st.text_input("Nomor Surat Pemohon 1*", value=selected_item["no_surat_1"])
+                    edit_permohonan1 = st.text_area("Perihal / Permohonan 1*", value=selected_item["permohonan_1"], height=75)
+                    edit_kegiatan1 = st.text_input("Kegiatan Baku 1*", value=selected_item["kegiatan_1"])
+                    edit_alamat1 = st.text_area("Alamat Pabrik 1", value=selected_item["alamat_pabrik_1"], height=65)
+                
+                with col_e2:
+                    edit_hari = st.text_input("Hari Pelaksanaan*", value=selected_item["hari"])
+                    edit_tgl_pelaks = st.text_input("Tanggal Pelaksanaan Tugas*", value=selected_item["tgl_pelaksanaan"])
+                    
+                    st.markdown("**Petugas yang Ditugaskan:**")
+                    cur_p = selected_item["daftar_petugas"]
+                    edit_petugas_list = []
+                    for p_i in range(1, 4):
+                        default_nama = cur_p[p_i-1]["nama"] if len(cur_p) >= p_i else "-- Kosong --"
+                        opts = ["-- Kosong --"] + list_pegawai
+                        idx_sel = opts.index(default_nama) if default_nama in opts else 0
+                        p_nama_edit = st.selectbox(f"Petugas {p_i}:", options=opts, index=idx_sel, key=f"edit_p_{p_i}")
+                        if p_nama_edit and p_nama_edit != "-- Kosong --":
+                            dtl = pegawai_data.get(p_nama_edit, {})
+                            edit_petugas_list.append({
+                                "nama": p_nama_edit,
+                                "pangkat": dtl.get("pangkat", ""),
+                                "jabatan": dtl.get("jabatan", "")
+                            })
+
+                btn_simpan_edit = st.form_submit_button("💾 Simpan Perubahan ke Google Sheets", type="primary", use_container_width=True)
+
+            if btn_simpan_edit:
+                try:
+                    with st.spinner("Memperbarui baris di Google Sheets..."):
+                        ss = get_spreadsheet()
+                        ws = ss.worksheet("Sheet1")
+                        r_num = selected_item["row_num"]
+                        
+                        pad_p = []
+                        for pi in range(6):
+                            if pi < len(edit_petugas_list):
+                                pad_p.extend([edit_petugas_list[pi]["nama"], edit_petugas_list[pi]["pangkat"], edit_petugas_list[pi]["jabatan"]])
+                            else:
+                                pad_p.extend(["", "", ""])
+                                
+                        row_update = [
+                            selected_item["no_urut"],
+                            edit_pt1,
+                            edit_no_surat1,
+                            selected_item["tgl_surat_1"],
+                            selected_item["pt_2"],
+                            selected_item["no_surat_2"],
+                            selected_item["tgl_surat_2"],
+                            edit_permohonan1,
+                            selected_item["permohonan_2"],
+                            *pad_p,
+                            edit_kegiatan1,
+                            selected_item["kegiatan_2"],
+                            edit_hari,
+                            edit_tgl_pelaks,
+                            "1",
+                            edit_alamat1,
+                            "",
+                            selected_item["alamat_pabrik_2"],
+                            "",
+                            ""
+                        ]
+                        
+                        ws.update(f"A{r_num}:AK{r_num}", [row_update], value_input_option="USER_ENTERED")
+                        st.success(f"Berhasil memperbarui data Surat Tugas No. {selected_item['no_urut']} di baris {r_num}!")
+                        st.cache_data.clear()
+                        st.rerun()
+                except Exception as err_edit:
+                    st.error(f"Gagal memperbarui Google Sheets: {err_edit}")
+
+        # -------------------------------------------------------------
+        # SUB-TAB C: HAPUS DARI DATABASE
+        # -------------------------------------------------------------
+        with subtab_hapus:
+            st.warning(f"⚠️ **Tindakan Penghapusan:** Data Surat Tugas **No. {selected_item['no_urut']} ({selected_item['pt_1']})** pada baris ke-{selected_item['row_num']} spreadsheet akan dihapus secara permanen.")
+            
+            cek_konfirm = st.checkbox(
+                f"Saya yakin dan bertanggung jawab ingin menghapus Surat Tugas No. {selected_item['no_urut']} dari database.",
+                value=False,
+                key=f"del_chk_{selected_item['no_urut']}"
             )
-        except Exception as e_r:
-            st.error(f"Gagal menyiapkan dokumen cetak ulang: {e_r}")
+            
+            if st.button("🗑️ Hapus Baris Ini Sekarang", disabled=not cek_konfirm, type="primary", use_container_width=True):
+                try:
+                    with st.spinner("Menghapus baris dari Google Sheets..."):
+                        ss = get_spreadsheet()
+                        ws = ss.worksheet("Sheet1")
+                        ws.delete_rows(selected_item["row_num"])
+                        st.success(f"Berhasil menghapus Surat Tugas No. {selected_item['no_urut']} dari Google Sheets!")
+                        st.cache_data.clear()
+                        st.rerun()
+                except Exception as err_del:
+                    st.error(f"Gagal menghapus baris dari Google Sheets: {err_del}")
