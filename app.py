@@ -315,6 +315,13 @@ def generate_docx_buffer(data_gen):
         for r in p.runs:
             r.font.name = "Arial"
                 
+    # Pastikan jarak tanda tangan elektronik di Word tetap lega (5 newlines)
+    c_elek = t_ttd.rows[2].cells[1]
+    c_elek.text = "\n\n\n\n\nDitandatangani secara elektronik"
+    for p in c_elek.paragraphs:
+        for r in p.runs:
+            r.font.name = "Arial"
+
     c_nama = t_ttd.rows[3].cells[1]
     c_nama.text = data_gen["nama_pejabat_ttd"]
     for p in c_nama.paragraphs:
@@ -479,7 +486,7 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <!-- BLOK TANDA TANGAN 100% PRESISI VERTIKAL -->
+    <!-- BLOK TANDA TANGAN DENGAN JARAK LEGAL TTE (75px) -->
     <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
         <td style="width: 42%;"></td>
@@ -495,7 +502,8 @@ def render_preview_html(data):
               </td>
               <td style="text-align: left; vertical-align: top;">
                 {jab_txt}
-                <div style="margin-top: 25px; color: #555; font-size: 11.5px;">Ditandatangani secara elektronik</div>
+                <!-- Jeda lega 75px untuk stempel tanda tangan elektronik / barcode QR -->
+                <div style="margin-top: 75px; color: #555; font-size: 11.5px;">Ditandatangani secara elektronik</div>
                 <div style="margin-top: 3px; font-weight: bold; color: #000;">{data['nama_pejabat_ttd']}</div>
               </td>
             </tr>
