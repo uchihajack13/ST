@@ -1106,28 +1106,3 @@ with tab_riwayat:
                         st.rerun()
                 except Exception as err_del:
                     st.error(f"Gagal menghapus baris dari Google Sheets: {err_del}")
-'''
-
-with open('artifacts/file_generation/ttl=63d/output/app.py', 'w') as f:
-    f.write(code)
-
-print("Final make_final_app completed successfully!")
-EOF
-python3 make_final_app.py
-python3 -m py_compile artifacts/file_generation/ttl=63d/output/app.py
-python3 -c "
-with open('artifacts/file_generation/ttl=63d/output/app.py') as f:
-    t = f.read()
-
-assert 'jab_kk_baku = \"Kepala Kantor Pengawasan dan\\\\nPelayanan Bea dan Cukai Tipe\\\\nMadya Cukai Malang\"' in t
-assert 'c_prefix.text = \"a.n.\"' in t
-assert 'c_plh.text = \"Plh.\"' in t
-assert 'jab_kk_html = \"Kepala Kantor Pengawasan dan<br>Pelayanan Bea dan Cukai Tipe<br>Madya Cukai Malang\"' in t
-assert 'padding-bottom: 3px;' in t
-assert 'r.font.bold = False' in t
-assert 'r_pt2.font.bold = True' in t
-assert 'class=\"indent\">\\n      Segala biaya yang timbul' in t
-
-print('ALL PRODUCTION ASSERTIONS PASSED 100%!')
-"
-,explanation:Writing and verifying final production app.py,toolAction:Verifying production app.py,toolSummary:Production app verification}
