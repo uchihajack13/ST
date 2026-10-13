@@ -207,6 +207,13 @@ def generate_docx_buffer(data_gen):
     template_file = "FORMAT ST.docx"
     doc = docx.Document(template_file)
     
+    # Pastikan paragraf Segala Biaya dan Surat Tugas menjorok
+    for p in doc.paragraphs:
+        if "Segala biaya yang timbul" in p.text:
+            p.paragraph_format.first_line_indent = Inches(0.5)
+        if "Surat Tugas ini disusun" in p.text:
+            p.paragraph_format.first_line_indent = Inches(0.5)
+
     # 1. Paragraf Konsideran
     teks_pt2 = ""
     if data_gen["pt_2"]:
@@ -265,7 +272,7 @@ def generate_docx_buffer(data_gen):
                 r.font.name = "Arial"
             break
 
-    # 4. Table 1 (Hari / Tanggal & Tempat - Pabrik 1 & Pabrik 2 Ditebalkan / BOLD)
+    # 4. Table 1 (Hari / Tanggal & Tempat - Pabrik 1 & Pabrik 2 Sama-sama BOLD)
     t_waktu = doc.tables[1]
     c_waktu = t_waktu.rows[0].cells[2]
     c_waktu.text = f"{data_gen['hari']} / {data_gen['tgl_pelaksanaan']}"
@@ -336,11 +343,13 @@ def generate_docx_buffer(data_gen):
             r.font.name = "Arial"
             r.font.color.rgb = RGBColor(191, 191, 191)
 
+    # Nama penandatangan dipastikan TIDAK BOLD (NORMAL)
     c_nama = t_ttd.rows[3].cells[1]
     c_nama.text = data_gen["nama_pejabat_ttd"]
     for p in c_nama.paragraphs:
         for r in p.runs:
             r.font.name = "Arial"
+            r.font.bold = False
 
     # 6. Table 3 (Tembusan)
     t_tembusan = doc.tables[3]
@@ -493,7 +502,7 @@ def render_preview_html(data):
       </tr>
     </table>
     
-    <p>
+    <p class="indent">
       Segala biaya yang timbul sebagai akibat dilaksanakannya surat ini dibebankan pada DIPA Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang
     </p>
     
@@ -501,7 +510,7 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <!-- BLOK TANDA TANGAN 100% PRESISI VERTIKAL -->
+    <!-- BLOK TANDA TANGAN DENGAN WARNA RESMI TTE #BFBFBF & NAMA TIDAK BOLD -->
     <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
         <td style="width: 42%;"></td>
@@ -519,7 +528,8 @@ def render_preview_html(data):
                 {jab_txt}
                 <!-- Teks Ditandatangani secara elektronik dengan warna resmi #BFBFBF -->
                 <div style="margin-top: 75px; color: #bfbfbf; font-size: 11.5px;">Ditandatangani secara elektronik</div>
-                <div style="margin-top: 3px; font-weight: bold; color: #000;">{data['nama_pejabat_ttd']}</div>
+                <!-- Nama penandatangan TIDAK BOLD (font-weight: normal) -->
+                <div style="margin-top: 3px; font-weight: normal; color: #000;">{data['nama_pejabat_ttd']}</div>
               </td>
             </tr>
           </table>
@@ -810,7 +820,6 @@ with tab_input:
         st.divider()
         st.subheader("📄 Dokumen Siap Diunduh")
         
-        # Tombol Download LANGSUNG tampil di atas jempol pengguna
         try:
             buf = generate_docx_buffer(data_gen)
             file_name_out = f"ST_{data_gen['pt_1'].replace(' ', '_')}_{data_gen['tgl_pelaksanaan'].replace(' ', '_')}.docx"
@@ -826,7 +835,6 @@ with tab_input:
         except Exception as e_dl:
             st.error(f"Gagal membuat file Word: {e_dl}")
 
-        # Pratinjau dibuat tertutup (collapsed) agar hemat layar HP, bisa dibuka jika ingin intip
         with st.expander("👁️ Intip Pratinjau Dokumen (Opsional)", expanded=False):
             components.html(render_preview_html(data_gen), height=850, scrolling=True)
 
