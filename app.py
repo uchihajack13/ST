@@ -102,6 +102,117 @@ except Exception as e:
     pegawai_data, perusahaan_data = {}, {}
 
 # ==========================================
+# FUNGSI RENDER PRATINJAU DOKUMEN (HTML PREVIEW)
+# ==========================================
+def render_preview_html(data):
+    petugas_rows = ""
+    num_p = len(data["daftar_petugas"])
+    for idx, p in enumerate(data["daftar_petugas"], start=1):
+        lbl = f"{idx}. Nama" if num_p > 1 else "Nama"
+        petugas_rows += f"""
+        <tr>
+            <td style="width: 140px; vertical-align: top; padding: 2px 0;">{lbl}</td>
+            <td style="vertical-align: top; padding: 2px 0;">: {p['nama']}</td>
+        </tr>
+        <tr>
+            <td style="vertical-align: top; padding: 2px 0;">Pangkat / Gol</td>
+            <td style="vertical-align: top; padding: 2px 0;">: {p['pangkat']}</td>
+        </tr>
+        <tr>
+            <td style="vertical-align: top; padding: 2px 0;">Jabatan</td>
+            <td style="vertical-align: top; padding: 2px 0;">: {p['jabatan']}</td>
+        </tr>
+        """
+        if idx < num_p:
+            petugas_rows += "<tr><td colspan='2' style='height: 8px;'></td></tr>"
+
+    teks_p2 = ""
+    if data["pt_2"]:
+        teks_p2 = f" serta surat permohonan {data['pt_2']} nomor {data['no_surat_2']} tanggal {data['tgl_surat_2']} hal {data['permohonan_2']}"
+
+    teks_keg2 = f" dan {data['kegiatan_2']}" if data["kegiatan_2"] else ""
+    
+    tempat_full = f"<b>{data['pt_1']}</b>, {data['alamat_pabrik_1']}"
+    if data["pt_2"] and data["alamat_pabrik_2"]:
+        tempat_full += f" serta {data['pt_2']}, {data['alamat_pabrik_2']}"
+
+    if data["tipe_ttd"] == "Kepala Kantor Langsung":
+        prefix_txt = "Plh." if data["is_plh"] else ""
+        jab_txt = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+        temb_txt = "1. Kepala Subbagian Umum<br>2. Kepala Seksi Pelayanan Kepabeanan dan Cukai II<br>3. Kepala Seksi Kepatuhan Internal"
+    else:
+        prefix_txt = "a.n"
+        sub_jab = "Plh. Kepala Subbagian Umum" if data["is_plh"] else "Kepala Subbagian Umum"
+        jab_txt = f"Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang<br>{sub_jab}"
+        temb_txt = "1. Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang<br>2. Kepala Subbagian Umum<br>3. Kepala Seksi Pelayanan Kepabeanan dan Cukai II<br>4. Kepala Seksi Kepatuhan Internal"
+
+    html = f"""
+    <div style="background-color: #f1f3f4; padding: 25px; border-radius: 8px; margin: 15px 0;">
+        <div style="background-color: #ffffff; color: #111111; font-family: Arial, sans-serif; font-size: 13.5px; line-height: 1.4; padding: 45px 50px; border: 1px solid #d0d7de; box-shadow: 0 4px 14px rgba(0,0,0,0.1); max-width: 720px; margin: 0 auto; border-radius: 4px;">
+            <div style="text-align: center; font-weight: bold; font-size: 15px; margin-bottom: 2px;">SURAT TUGAS</div>
+            <div style="text-align: center; font-size: 13.5px; margin-bottom: 25px;">NOMOR [@NomorND]</div>
+            
+            <p style="text-align: justify; text-indent: 30px; margin-bottom: 15px;">
+                Sehubungan dengan surat permohonan {data['pt_1']} nomor {data['no_surat_1']} tanggal {data['tgl_surat_1']} hal {data['permohonan_1']}{teks_p2},  kami menugasi :
+            </p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13.5px;">
+                {petugas_rows}
+            </table>
+            
+            <p style="text-align: justify; margin-bottom: 15px;">
+                untuk melaksanakan {data['kegiatan_1']}{teks_keg2} dan melakukan tugas lain terkait kepabeanan dan cukai pada:
+            </p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 13.5px;">
+                <tr>
+                    <td style="width: 140px; vertical-align: top; padding: 2px 0;">hari / tanggal</td>
+                    <td style="width: 15px; vertical-align: top; padding: 2px 0;">:</td>
+                    <td style="vertical-align: top; padding: 2px 0;">{data['hari']} / {data['tgl_pelaksanaan']}</td>
+                </tr>
+                <tr>
+                    <td style="width: 140px; vertical-align: top; padding: 2px 0;">tempat</td>
+                    <td style="vertical-align: top; padding: 2px 0;">:</td>
+                    <td style="vertical-align: top; padding: 2px 0;">{tempat_full}</td>
+                </tr>
+            </table>
+            
+            <p style="text-align: justify; margin-bottom: 15px;">
+                Segala biaya yang timbul sebagai akibat dilaksanakannya surat ini dibebankan pada DIPA Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang
+            </p>
+            
+            <p style="text-align: justify; text-indent: 30px; margin-bottom: 25px;">
+                Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
+            </p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 13.5px;">
+                <tr>
+                    <td style="width: 45%;"></td>
+                    <td style="width: 55%; text-align: left; padding-left: 10px;">
+                        Malang, [@TanggalND]<br><br>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="width: 40px; vertical-align: top; text-align: right; padding-right: 8px;">{prefix_txt}</td>
+                                <td style="vertical-align: top; text-align: left;">{jab_txt}</td>
+                            </tr>
+                        </table>
+                        <br><br><br>
+                        <span style="color: #666; font-size: 11.5px;">Ditandatangani secara elektronik</span><br>
+                        {data['nama_pejabat_ttd']}
+                    </td>
+                </tr>
+            </table>
+            
+            <div style="font-size: 11.5px; margin-top: 15px; line-height: 1.5;">
+                <b>Tembusan:</b><br>
+                {temb_txt}
+            </div>
+        </div>
+    </div>
+    """
+    return html
+
+# ==========================================
 # INTERFACE UTAMA
 # ==========================================
 st.title("📋 Sistem Otomasi Surat Tugas KPPBC TMC Malang")
@@ -116,7 +227,8 @@ with st.sidebar:
     st.markdown("**Petunjuk Cepat:**")
     st.caption("1. Isi form di samping kanan secara lengkap.")
     st.caption("2. Klik 'Simpan ke Database' untuk append ke Sheet1.")
-    st.caption("3. Klik 'Unduh Surat Tugas (.docx)' untuk download draf Word.")
+    st.caption("3. Periksa Pratinjau Dokumen.")
+    st.caption("4. Klik 'Unduh Surat Tugas (.docx)'.")
 
 list_perusahaan = sorted(list(perusahaan_data.keys())) if perusahaan_data else []
 list_pegawai = sorted(list(pegawai_data.keys())) if pegawai_data else []
@@ -326,17 +438,20 @@ if submit_simpan:
             st.error(f"Gagal menyimpan ke Google Sheets: {err}")
 
 # ==========================================
-# EKSEKUSI 2: GENERATE WORD LANGSUNG DARI FORMAT ST.docx
+# EKSEKUSI 2: PRATINJAU & DOWNLOAD WORD
 # ==========================================
 st.divider()
-st.subheader("📄 Generate Draf Dokumen Word (.docx)")
+st.subheader("📄 Pratinjau & Unduh Dokumen Word (.docx)")
 
 if "last_submitted_data" in st.session_state:
     data_gen = st.session_state["last_submitted_data"]
-    st.write(f"Data Siap Cetak: **{data_gen['pt_1']}** (Pelaksanaan: {data_gen['hari']}, {data_gen['tgl_pelaksanaan']})")
+    st.success(f"Data Siap Cetak: **{data_gen['pt_1']}** (Pelaksanaan: {data_gen['hari']}, {data_gen['tgl_pelaksanaan']})")
+    
+    # 1. TAMPILKAN PRATINJAU DOKUMEN REALISTIS
+    with st.expander("👁️ Pratinjau Dokumen Surat Tugas (Klik untuk Buka/Tutup)", expanded=True):
+        st.markdown(render_preview_html(data_gen), unsafe_allow_html=True)
     
     try:
-        # Menggunakan langsung template resmi FORMAT ST.docx
         template_file = "FORMAT ST.docx"
         doc = docx.Document(template_file)
         
@@ -439,10 +554,15 @@ if "last_submitted_data" in st.session_state:
             else:
                 c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nKepala Subbagian Umum"
                 
-        for c in [c_prefix, c_jab]:
-            for p in c.paragraphs:
-                for r in p.runs:
-                    r.font.name = "Arial"
+        # Set alignment RATA KANAN (RIGHT) agar a.n atau Plh menempel persis di samping jabatan
+        for p in c_prefix.paragraphs:
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            for r in p.runs:
+                r.font.name = "Arial"
+
+        for p in c_jab.paragraphs:
+            for r in p.runs:
+                r.font.name = "Arial"
                     
         c_nama = t_ttd.rows[3].cells[1]
         c_nama.text = data_gen["nama_pejabat_ttd"]
@@ -480,4 +600,4 @@ if "last_submitted_data" in st.session_state:
     except Exception as e_docx:
         st.error(f"Gagal membuat dokumen Word: {e_docx}")
 else:
-    st.info("Kirim/simpan form di atas terlebih dahulu untuk mengaktifkan tombol unduh dokumen Word.")
+    st.info("Kirim/simpan form di atas terlebih dahulu untuk melihat pratinjau dan mengaktifkan tombol unduh dokumen Word.")
