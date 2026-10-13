@@ -3,7 +3,9 @@ import datetime
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
-from docxtpl import DocxTemplate
+import docx
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ==========================================
 # KONFIGURASI HALAMAN
@@ -129,10 +131,10 @@ with st.form("form_surat_tugas", clear_on_submit=False):
     with col1:
         st.markdown("**Pabrik 1 (Pemohon Utama)**")
         pt_1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=[""] + list_perusahaan, index=0)
-        no_surat_1 = st.text_input("Nomor Surat Pemohon 1*", placeholder="Contoh: 078/BIT-IX/2026")
+        no_surat_1 = st.text_input("Nomor Surat Pemohon 1*", placeholder="Contoh: 00236/MS/X/2026")
         tgl_surat_1 = st.date_input("Tanggal Surat Pemohon 1*", value=datetime.date.today())
-        permohonan_1 = st.text_area("Perihal / Permohonan 1*", placeholder="Permohonan Pemeriksaan TIS Retur")
-        kegiatan_1 = st.text_input("Kegiatan Baku 1 (Pelaksanaan Tugas)*", placeholder="Pemeriksaan TIS Retur")
+        permohonan_1 = st.text_area("Perihal / Permohonan 1*", placeholder="Permohonan Pemeriksaan dan Penyegelan Cukai Hasil Tembakau untuk Ekspor")
+        kegiatan_1 = st.text_input("Kegiatan Baku 1 (Pelaksanaan Tugas)*", placeholder="Pemeriksaan dan Penyegelan Cukai Hasil Tembakau untuk Ekspor")
         
         pilihan_lokasi_1 = st.selectbox("Pilihan Lokasi Pabrik 1 (1 - 12)", options=list(range(1, 13)), index=0)
         alamat_pabrik_1 = ""
@@ -191,7 +193,6 @@ with st.form("form_surat_tugas", clear_on_submit=False):
             p_jabatan = detail.get("jabatan", "")
             data_petugas_terpilih.append({
                 "no": len(data_petugas_terpilih) + 1,
-                "label_nama": "Nama",
                 "nama": sel_nama,
                 "nip": p_nip,
                 "pangkat": p_pangkat,
@@ -202,13 +203,6 @@ with st.form("form_surat_tugas", clear_on_submit=False):
             cp1, cp2 = st.columns(2)
             cp1.text_input(f"Pangkat {i}", value=p_pangkat, disabled=True, key=f"pkt_{i}")
             cp2.text_input(f"Jabatan {i}", value=p_jabatan, disabled=True, key=f"jbt_{i}")
-
-    # Set label nomor urut jika petugas lebih dari 1 orang
-    if len(data_petugas_terpilih) > 1:
-        for idx_p, p_item in enumerate(data_petugas_terpilih, start=1):
-            p_item["label_nama"] = f"{idx_p}. Nama"
-    elif len(data_petugas_terpilih) == 1:
-        data_petugas_terpilih[0]["label_nama"] = "Nama"
 
     st.divider()
 
@@ -332,7 +326,7 @@ if submit_simpan:
             st.error(f"Gagal menyimpan ke Google Sheets: {err}")
 
 # ==========================================
-# EKSEKUSI 2: GENERATE & DOWNLOAD WORD
+# EKSEKUSI 2: GENERATE WORD LANGSUNG DARI FORMAT ST.docx
 # ==========================================
 st.divider()
 st.subheader("📄 Generate Draf Dokumen Word (.docx)")
@@ -342,42 +336,132 @@ if "last_submitted_data" in st.session_state:
     st.write(f"Data Siap Cetak: **{data_gen['pt_1']}** (Pelaksanaan: {data_gen['hari']}, {data_gen['tgl_pelaksanaan']})")
     
     try:
-        if data_gen["tipe_ttd"] == "Kepala Kantor Langsung":
-            template_path = "template_st_kk.docx"
-            prefix_ttd = "Plh." if data_gen["is_plh"] else ""
-            jabatan_struktural = ""
-        else:
-            template_path = "template_st_an.docx"
-            prefix_ttd = "a.n."
-            jabatan_struktural = "Plh. Kepala Subbagian Umum" if data_gen["is_plh"] else "Kepala Subbagian Umum"
+        # Menggunakan langsung template resmi FORMAT ST.docx
+        template_file = "FORMAT ST.docx"
+        doc = docx.Document(template_file)
+        
+        # 1. Update Paragraf Sehubungan (Konsideran)
+        teks_pt2 = ""
+        if data_gen["pt_2"]:
+            teks_pt2 = f" serta surat permohonan {data_gen['pt_2']} nomor {data_gen['no_surat_2']} tanggal {data_gen['tgl_surat_2']} hal {data_gen['permohonan_2']}"
+        
+        for p in doc.paragraphs:
+            if "Sehubungan dengan surat permohonan" in p.text:
+                p.text = f"\tSehubungan dengan surat permohonan {data_gen['pt_1']} nomor {data_gen['no_surat_1']} tanggal {data_gen['tgl_surat_1']} hal {data_gen['permohonan_1']}{teks_pt2},  kami menugasi :"
+                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                for r in p.runs:
+                    r.font.name = "Arial"
+                break
+                
+        # 2. Update Table 0 (Petugas)
+        t_petugas = doc.tables[0]
+        while len(t_petugas.rows) > 0:
+            t_petugas._tbl.remove(t_petugas.rows[0]._tr)
+            
+        petugas_list = data_gen["daftar_petugas"]
+        num_petugas = len(petugas_list)
+        for idx_p, pet in enumerate(petugas_list, start=1):
+            lbl_nama = f"{idx_p}. Nama" if num_petugas > 1 else "Nama"
+            items = [
+                (lbl_nama, f": {pet['nama']}"),
+                ("Pangkat / Gol", f": {pet['pangkat']}"),
+                ("Jabatan", f": {pet['jabatan']}")
+            ]
+            for lbl, val in items:
+                row = t_petugas.add_row()
+                c0 = row.cells[0]
+                c1 = row.cells[1]
+                c0.width = Inches(1.13)
+                c1.width = Inches(4.38)
+                
+                p0 = c0.paragraphs[0]
+                p0.paragraph_format.space_before = Pt(0)
+                p0.paragraph_format.space_after = Pt(0)
+                p0.paragraph_format.line_spacing = 1.05
+                r0 = p0.add_run(lbl)
+                r0.font.name = "Arial"
+                
+                p1 = c1.paragraphs[0]
+                p1.paragraph_format.space_before = Pt(0)
+                p1.paragraph_format.space_after = Pt(0)
+                p1.paragraph_format.line_spacing = 1.05
+                r1 = p1.add_run(val)
+                r1.font.name = "Arial"
 
-        doc = DocxTemplate(template_path)
+        # 3. Update Paragraf Kegiatan
+        teks_keg2 = f" dan {data_gen['kegiatan_2']}" if data_gen["kegiatan_2"] else ""
+        for p in doc.paragraphs:
+            if "untuk melaksanakan" in p.text:
+                p.text = f"untuk melaksanakan {data_gen['kegiatan_1']}{teks_keg2} dan melakukan tugas lain terkait kepabeanan dan cukai pada:"
+                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                for r in p.runs:
+                    r.font.name = "Arial"
+                break
+
+        # 4. Update Table 1 (Hari / Tanggal & Tempat)
+        t_waktu = doc.tables[1]
+        c_waktu = t_waktu.rows[0].cells[2]
+        c_waktu.text = f"{data_gen['hari']} / {data_gen['tgl_pelaksanaan']}"
+        for p in c_waktu.paragraphs:
+            for r in p.runs:
+                r.font.name = "Arial"
+                
+        c_tempat = t_waktu.rows[1].cells[2]
+        c_tempat.text = ""
+        p_t = c_tempat.paragraphs[0]
+        r_pt1 = p_t.add_run(data_gen["pt_1"])
+        r_pt1.font.name = "Arial"
+        r_pt1.font.bold = True
+        r_koma = p_t.add_run(", ")
+        r_koma.font.name = "Arial"
+        r_alm = p_t.add_run(data_gen["alamat_pabrik_1"])
+        r_alm.font.name = "Arial"
+        if data_gen["pt_2"] and data_gen["alamat_pabrik_2"]:
+            r_dan = p_t.add_run(f" serta {data_gen['pt_2']}, {data_gen['alamat_pabrik_2']}")
+            r_dan.font.name = "Arial"
+
+        # 5. Update Table 2 (Tanda Tangan)
+        t_ttd = doc.tables[2]
+        c_prefix = t_ttd.rows[1].cells[0]
+        c_jab = t_ttd.rows[1].cells[1]
         
-        context = {
-            "NOMOR_ND": "[@NomorND]",
-            "TANGGAL_ND": "[@TanggalND]",
-            "NAMA_PERUSAHAAN": data_gen["pt_1"],
-            "NOMOR_SURAT": data_gen["no_surat_1"],
-            "TANGGAL_SURAT": data_gen["tgl_surat_1"],
-            "PERMOHONAN": data_gen["permohonan_1"],
-            "KEGIATAN": data_gen["kegiatan_1"],
-            "HARI": data_gen["hari"],
-            "TANGGAL_PELAKSANAAN": data_gen["tgl_pelaksanaan"],
-            "ALAMAT_PABRIK": data_gen["alamat_pabrik_1"],
-            "ADA_PABRIK_2": bool(data_gen["pt_2"]),
-            "NAMA_PERUSAHAAN_2": data_gen["pt_2"],
-            "NOMOR_SURAT_2": data_gen["no_surat_2"],
-            "TANGGAL_SURAT_2": data_gen["tgl_surat_2"],
-            "PERMOHONAN_2": data_gen["permohonan_2"],
-            "KEGIATAN_2": data_gen["kegiatan_2"],
-            "ALAMAT_PABRIK_2": data_gen["alamat_pabrik_2"],
-            "DAFTAR_PETUGAS": data_gen["daftar_petugas"],
-            "PREFIX_TTD": prefix_ttd,
-            "JABATAN_STRUKTURAL": jabatan_struktural,
-            "NAMA_PENANDATANGAN": data_gen["nama_pejabat_ttd"]
-        }
-        
-        doc.render(context)
+        if data_gen["tipe_ttd"] == "Kepala Kantor Langsung":
+            if data_gen["is_plh"]:
+                c_prefix.text = "Plh."
+                c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+            else:
+                c_prefix.text = ""
+                c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+        else:
+            c_prefix.text = "a.n"
+            if data_gen["is_plh"]:
+                c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nPlh. Kepala Subbagian Umum"
+            else:
+                c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nKepala Subbagian Umum"
+                
+        for c in [c_prefix, c_jab]:
+            for p in c.paragraphs:
+                for r in p.runs:
+                    r.font.name = "Arial"
+                    
+        c_nama = t_ttd.rows[3].cells[1]
+        c_nama.text = data_gen["nama_pejabat_ttd"]
+        for p in c_nama.paragraphs:
+            for r in p.runs:
+                r.font.name = "Arial"
+
+        # 6. Update Table 3 (Tembusan)
+        t_tembusan = doc.tables[3]
+        c_temb = t_tembusan.rows[1].cells[0]
+        if data_gen["tipe_ttd"] == "Kepala Kantor Langsung":
+            c_temb.text = "1. Kepala Subbagian Umum\n2. Kepala Seksi Pelayanan Kepabeanan dan Cukai II\n3. Kepala Seksi Kepatuhan Internal"
+        else:
+            c_temb.text = "1. Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\n2. Kepala Subbagian Umum\n3. Kepala Seksi Pelayanan Kepabeanan dan Cukai II\n4. Kepala Seksi Kepatuhan Internal"
+        for p in c_temb.paragraphs:
+            for r in p.runs:
+                r.font.name = "Arial"
+
+        # Simpan ke in-memory buffer
         docx_buffer = io.BytesIO()
         doc.save(docx_buffer)
         docx_buffer.seek(0)
@@ -392,7 +476,7 @@ if "last_submitted_data" in st.session_state:
             type="primary"
         )
     except FileNotFoundError:
-        st.warning(f"⚠️ File `{template_path}` tidak ditemukan. Pastikan file template berada di satu folder dengan `app.py`.")
+        st.warning("⚠️ File template `FORMAT ST.docx` tidak ditemukan di repository GitHub. Harap upload file `FORMAT ST.docx` ke repo.")
     except Exception as e_docx:
         st.error(f"Gagal membuat dokumen Word: {e_docx}")
 else:
