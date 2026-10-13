@@ -207,7 +207,7 @@ def generate_docx_buffer(data_gen):
     template_file = "FORMAT ST.docx"
     doc = docx.Document(template_file)
     
-    # Pastikan paragraf Segala Biaya dan Surat Tugas menjorok
+    # Pastikan paragraf Segala Biaya dan Surat Tugas menjorok (first line indent)
     for p in doc.paragraphs:
         if "Segala biaya yang timbul" in p.text:
             p.paragraph_format.first_line_indent = Inches(0.5)
@@ -305,22 +305,33 @@ def generate_docx_buffer(data_gen):
         r_alm2 = p_t.add_run(data_gen["alamat_pabrik_2"])
         r_alm2.font.name = "Arial"
 
-    # 5. Table 2 (Tanda Tangan - a.n dan Plh 100% Sejajar di Kolom Kiri)
+    # 5. Table 2 (Tanda Tangan - Pemenggalan Baku Anti-Offside & Rapat ke Tanggal Malang)
     t_ttd = doc.tables[2]
-    # Kembalikan ke 4 baris standar jika ada row tambahan sebelumnya
     while len(t_ttd.rows) > 4:
         t_ttd._tbl.remove(t_ttd.rows[2]._tr)
         
+    # Row 0: Malang rapat dengan baris jabatan (space_after cuma 2pt)
+    c_tgl = t_ttd.rows[0].cells[1]
+    p_tgl = c_tgl.paragraphs[0]
+    p_tgl.paragraph_format.space_before = Pt(0)
+    p_tgl.paragraph_format.space_after = Pt(2)
+    p_tgl.paragraph_format.line_spacing = 1.05
+    for r in p_tgl.runs:
+        r.font.name = "Arial"
+
     c_prefix = t_ttd.rows[1].cells[0]
     c_jab = t_ttd.rows[1].cells[1]
+    
+    # Teks 3 baris baku Kepala Kantor (anti-offside)
+    jab_kk_baku = "Kepala Kantor Pengawasan dan\nPelayanan Bea dan Cukai Tipe\nMadya Cukai Malang"
     
     if data_gen["tipe_ttd"] == "Kepala Kantor Langsung":
         if data_gen["is_plh"]:
             c_prefix.text = "Plh."
-            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+            c_jab.text = jab_kk_baku
         else:
             c_prefix.text = ""
-            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+            c_jab.text = jab_kk_baku
         
         for p in c_prefix.paragraphs:
             p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -328,17 +339,18 @@ def generate_docx_buffer(data_gen):
                 r.font.name = "Arial"
         for p in c_jab.paragraphs:
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p.paragraph_format.line_spacing = 1.15
             for r in p.runs:
                 r.font.name = "Arial"
     else:
         # a.n. Kasubag Umum
         if data_gen["is_plh"]:
-            # Sisipkan baris terpisah agar 'Plh.' berada di kolom kiri sejajar dengan 'a.n'
+            # Sisipkan baris terpisah agar Plh. persis di bawah a.n. di kolom kiri
             new_row = t_ttd.add_row()
             t_ttd.rows[1]._tr.addnext(new_row._tr)
             
-            c_prefix.text = "a.n"
-            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+            c_prefix.text = "a.n."
+            c_jab.text = jab_kk_baku
             
             c_plh = t_ttd.rows[2].cells[0]
             c_subjab = t_ttd.rows[2].cells[1]
@@ -351,6 +363,7 @@ def generate_docx_buffer(data_gen):
                     r.font.name = "Arial"
             for p in c_jab.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                p.paragraph_format.line_spacing = 1.15
                 for r in p.runs:
                     r.font.name = "Arial"
             for p in c_plh.paragraphs:
@@ -359,17 +372,19 @@ def generate_docx_buffer(data_gen):
                     r.font.name = "Arial"
             for p in c_subjab.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                p.paragraph_format.line_spacing = 1.15
                 for r in p.runs:
                     r.font.name = "Arial"
         else:
-            c_prefix.text = "a.n"
-            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nKepala Subbagian Umum"
+            c_prefix.text = "a.n."
+            c_jab.text = f"{jab_kk_baku}\nKepala Subbagian Umum"
             for p in c_prefix.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                 for r in p.runs:
                     r.font.name = "Arial"
             for p in c_jab.paragraphs:
                 p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                p.paragraph_format.line_spacing = 1.15
                 for r in p.runs:
                     r.font.name = "Arial"
 
@@ -389,7 +404,7 @@ def generate_docx_buffer(data_gen):
     for p in c_nama.paragraphs:
         for r in p.runs:
             r.font.name = "Arial"
-            r.font.bold = False
+            r.font.bold = False  # Nama penandatangan TIDAK BOLD
 
     # 6. Table 3 (Tembusan)
     t_tembusan = doc.tables[3]
@@ -443,35 +458,32 @@ def render_preview_html(data):
     if data["pt_2"] and data["alamat_pabrik_2"]:
         tempat_full += f" serta <b>{data['pt_2']}</b>, {data['alamat_pabrik_2']}"
 
+    # Teks 3 baris baku Kepala Kantor (terpotong persis seperti Gambar 1)
+    jab_kk_html = "Kepala Kantor Pengawasan dan<br>Pelayanan Bea dan Cukai Tipe<br>Madya Cukai Malang"
+
     if data["tipe_ttd"] == "Kepala Kantor Langsung":
         prefix_1 = "Plh." if data["is_plh"] else ""
-        jab_1 = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+        jab_1 = jab_kk_html
         baris_2_html = ""
         temb_txt = "1. Kepala Subbagian Umum<br>2. Kepala Seksi Pelayanan Kepabeanan dan Cukai II<br>3. Kepala Seksi Kepatuhan Internal"
     else:
-        prefix_1 = "a.n"
-        jab_1 = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+        prefix_1 = "a.n."
         temb_txt = "1. Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang<br>2. Kepala Subbagian Umum<br>3. Kepala Seksi Pelayanan Kepabeanan dan Cukai II<br>4. Kepala Seksi Kepatuhan Internal"
         if data["is_plh"]:
+            jab_1 = jab_kk_html
             baris_2_html = """
             <tr>
-              <td style="width: 35px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
+              <td style="width: 38px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
                 Plh.
               </td>
-              <td style="text-align: left; vertical-align: top;">
+              <td style="text-align: left; vertical-align: top; line-height: 1.25;">
                 Kepala Subbagian Umum
               </td>
             </tr>
             """
         else:
-            baris_2_html = """
-            <tr>
-              <td></td>
-              <td style="text-align: left; vertical-align: top;">
-                Kepala Subbagian Umum
-              </td>
-            </tr>
-            """
+            jab_1 = f"{jab_kk_html}<br>Kepala Subbagian Umum"
+            baris_2_html = ""
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -570,21 +582,22 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <!-- BLOK TANDA TANGAN: a.n dan Plh 100% SEJAJAR DI KOLOM KIRI -->
+    <!-- BLOK TANDA TANGAN: RAPAT KE TANGGAL MALANG, 100% PRESISI SEPERTI GAMBAR 1 -->
     <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
-        <td style="width: 42%;"></td>
-        <td style="width: 58%;">
+        <td style="width: 44%;"></td>
+        <td style="width: 56%;">
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
-              <td style="width: 35px;"></td>
-              <td style="text-align: left; padding-bottom: 12px;">Malang, [@TanggalND]</td>
+              <td style="width: 38px;"></td>
+              <!-- Tanggal Malang rapat ke baris jabatan (padding hanya 3px) -->
+              <td style="text-align: left; padding-bottom: 3px; line-height: 1.15;">Malang, [@TanggalND]</td>
             </tr>
             <tr>
-              <td style="width: 35px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
+              <td style="width: 38px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
                 {prefix_1}
               </td>
-              <td style="text-align: left; vertical-align: top;">
+              <td style="text-align: left; vertical-align: top; line-height: 1.25;">
                 {jab_1}
               </td>
             </tr>
@@ -1093,3 +1106,28 @@ with tab_riwayat:
                         st.rerun()
                 except Exception as err_del:
                     st.error(f"Gagal menghapus baris dari Google Sheets: {err_del}")
+'''
+
+with open('artifacts/file_generation/ttl=63d/output/app.py', 'w') as f:
+    f.write(code)
+
+print("Final make_final_app completed successfully!")
+EOF
+python3 make_final_app.py
+python3 -m py_compile artifacts/file_generation/ttl=63d/output/app.py
+python3 -c "
+with open('artifacts/file_generation/ttl=63d/output/app.py') as f:
+    t = f.read()
+
+assert 'jab_kk_baku = \"Kepala Kantor Pengawasan dan\\\\nPelayanan Bea dan Cukai Tipe\\\\nMadya Cukai Malang\"' in t
+assert 'c_prefix.text = \"a.n.\"' in t
+assert 'c_plh.text = \"Plh.\"' in t
+assert 'jab_kk_html = \"Kepala Kantor Pengawasan dan<br>Pelayanan Bea dan Cukai Tipe<br>Madya Cukai Malang\"' in t
+assert 'padding-bottom: 3px;' in t
+assert 'r.font.bold = False' in t
+assert 'r_pt2.font.bold = True' in t
+assert 'class=\"indent\">\\n      Segala biaya yang timbul' in t
+
+print('ALL PRODUCTION ASSERTIONS PASSED 100%!')
+"
+,explanation:Writing and verifying final production app.py,toolAction:Verifying production app.py,toolSummary:Production app verification}
