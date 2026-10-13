@@ -140,7 +140,6 @@ def load_riwayat_data():
         
         data_rows = all_rows[1:]
         riwayat = []
-        # Catat nomor baris fisik di Google Sheets (header = baris 1, data mulai baris 2)
         for orig_idx, r_raw in enumerate(data_rows):
             if not r_raw or not r_raw[0].strip():
                 continue
@@ -266,7 +265,7 @@ def generate_docx_buffer(data_gen):
                 r.font.name = "Arial"
             break
 
-    # 4. Table 1 (Hari / Tanggal & Tempat)
+    # 4. Table 1 (Hari / Tanggal & Tempat - Pabrik 1 & Pabrik 2 Ditebalkan / BOLD)
     t_waktu = doc.tables[1]
     c_waktu = t_waktu.rows[0].cells[2]
     c_waktu.text = f"{data_gen['hari']} / {data_gen['tgl_pelaksanaan']}"
@@ -277,6 +276,8 @@ def generate_docx_buffer(data_gen):
     c_tempat = t_waktu.rows[1].cells[2]
     c_tempat.text = ""
     p_t = c_tempat.paragraphs[0]
+    
+    # Pabrik 1 (BOLD)
     r_pt1 = p_t.add_run(data_gen["pt_1"])
     r_pt1.font.name = "Arial"
     r_pt1.font.bold = True
@@ -284,9 +285,18 @@ def generate_docx_buffer(data_gen):
     r_koma.font.name = "Arial"
     r_alm = p_t.add_run(data_gen["alamat_pabrik_1"])
     r_alm.font.name = "Arial"
+    
+    # Pabrik 2 (BOLD) jika ada
     if data_gen["pt_2"] and data_gen["alamat_pabrik_2"]:
-        r_dan = p_t.add_run(f" serta {data_gen['pt_2']}, {data_gen['alamat_pabrik_2']}")
-        r_dan.font.name = "Arial"
+        r_serta = p_t.add_run(" serta ")
+        r_serta.font.name = "Arial"
+        r_pt2 = p_t.add_run(data_gen["pt_2"])
+        r_pt2.font.name = "Arial"
+        r_pt2.font.bold = True
+        r_koma2 = p_t.add_run(", ")
+        r_koma2.font.name = "Arial"
+        r_alm2 = p_t.add_run(data_gen["alamat_pabrik_2"])
+        r_alm2.font.name = "Arial"
 
     # 5. Table 2 (Tanda Tangan)
     t_ttd = doc.tables[2]
@@ -318,7 +328,7 @@ def generate_docx_buffer(data_gen):
         for r in p.runs:
             r.font.name = "Arial"
                 
-    # Pastikan jarak tanda tangan elektronik tetap lega & warna abu-abu resmi BSrE (#BFBFBF)
+    # Jeda lega & warna abu-abu resmi BSrE (#BFBFBF)
     c_elek = t_ttd.rows[2].cells[1]
     c_elek.text = "\n\n\n\n\nDitandatangani secara elektronik"
     for p in c_elek.paragraphs:
@@ -379,9 +389,10 @@ def render_preview_html(data):
 
     teks_keg2 = f" dan {data['kegiatan_2']}" if data["kegiatan_2"] else ""
     
+    # Kedua Pabrik Ditebalkan / BOLD
     tempat_full = f"<b>{data['pt_1']}</b>, {data['alamat_pabrik_1']}"
     if data["pt_2"] and data["alamat_pabrik_2"]:
-        tempat_full += f" serta {data['pt_2']}, {data['alamat_pabrik_2']}"
+        tempat_full += f" serta <b>{data['pt_2']}</b>, {data['alamat_pabrik_2']}"
 
     if data["tipe_ttd"] == "Kepala Kantor Langsung":
         prefix_txt = "Plh." if data["is_plh"] else ""
@@ -490,7 +501,7 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <!-- BLOK TANDA TANGAN DENGAN WARNA RESMI TTE #BFBFBF -->
+    <!-- BLOK TANDA TANGAN 100% PRESISI VERTIKAL -->
     <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
         <td style="width: 42%;"></td>
@@ -793,15 +804,13 @@ with tab_input:
             except Exception as err:
                 st.error(f"Gagal menyimpan ke Google Sheets: {err}")
 
-    # Pratinjau & Tombol Unduh untuk Input Baru
+    # Unduh Langsung & Pratinjau Opsional untuk Input Baru (Super Cepat di HP)
     if "last_submitted_data" in st.session_state:
         data_gen = st.session_state["last_submitted_data"]
         st.divider()
-        st.subheader("📄 Pratinjau & Unduh Surat Tugas Baru")
+        st.subheader("📄 Dokumen Siap Diunduh")
         
-        with st.expander("👁️ Pratinjau Dokumen Surat Tugas (Klik untuk Buka/Tutup)", expanded=True):
-            components.html(render_preview_html(data_gen), height=850, scrolling=True)
-            
+        # Tombol Download LANGSUNG tampil di atas jempol pengguna
         try:
             buf = generate_docx_buffer(data_gen)
             file_name_out = f"ST_{data_gen['pt_1'].replace(' ', '_')}_{data_gen['tgl_pelaksanaan'].replace(' ', '_')}.docx"
@@ -811,10 +820,15 @@ with tab_input:
                 file_name=file_name_out,
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 type="primary",
+                use_container_width=True,
                 key="btn_dl_new"
             )
         except Exception as e_dl:
             st.error(f"Gagal membuat file Word: {e_dl}")
+
+        # Pratinjau dibuat tertutup (collapsed) agar hemat layar HP, bisa dibuka jika ingin intip
+        with st.expander("👁️ Intip Pratinjau Dokumen (Opsional)", expanded=False):
+            components.html(render_preview_html(data_gen), height=850, scrolling=True)
 
 # ==========================================
 # TAB 2: RIWAYAT, EDIT, HAPUS & CETAK ULANG
