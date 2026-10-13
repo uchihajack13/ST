@@ -1,4 +1,5 @@
 import io
+import re
 import datetime
 import streamlit as st
 import streamlit.components.v1 as components
@@ -9,12 +10,13 @@ from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ==========================================
-# KONFIGURASI HALAMAN
+# KONFIGURASI HALAMAN (MOBILE-FIRST)
 # ==========================================
 st.set_page_config(
     page_title="Generator Surat Tugas KPPBC TMC Malang",
     page_icon="📋",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # Kamus Nama Hari & Bulan Bahasa Indonesia
@@ -33,6 +35,39 @@ def format_tanggal_indo(d: datetime.date) -> str:
     if not d:
         return ""
     return f"{d.day} {BULAN_INDONESIA[d.month]} {d.year}"
+
+def strip_permohonan(text: str) -> str:
+    if not text:
+        return ""
+    # Menghapus kata "permohonan" atau "permohonan:" di awal teks
+    clean = re.sub(r'^(permohonan\s+|permohonan:\s*)', '', text.strip(), flags=re.IGNORECASE).strip()
+    return clean
+
+# Inisialisasi Session State untuk Efisiensi Mobile & Otomatisasi
+if "num_petugas" not in st.session_state:
+    st.session_state["num_petugas"] = 1
+
+if "in_kegiatan_1" not in st.session_state:
+    st.session_state["in_kegiatan_1"] = ""
+if "prev_permohonan_1" not in st.session_state:
+    st.session_state["prev_permohonan_1"] = ""
+
+if "in_kegiatan_2" not in st.session_state:
+    st.session_state["in_kegiatan_2"] = ""
+if "prev_permohonan_2" not in st.session_state:
+    st.session_state["prev_permohonan_2"] = ""
+
+def on_permohonan_1_change():
+    cur = st.session_state.get("in_permohonan_1", "")
+    if cur != st.session_state.get("prev_permohonan_1", ""):
+        st.session_state["in_kegiatan_1"] = strip_permohonan(cur)
+        st.session_state["prev_permohonan_1"] = cur
+
+def on_permohonan_2_change():
+    cur2 = st.session_state.get("in_permohonan_2", "")
+    if cur2 != st.session_state.get("prev_permohonan_2", ""):
+        st.session_state["in_kegiatan_2"] = strip_permohonan(cur2)
+        st.session_state["prev_permohonan_2"] = cur2
 
 # ==========================================
 # KONEKSI & CACHING GOOGLE SHEETS
@@ -129,7 +164,6 @@ def load_riwayat_data():
             pt_1 = r[1].strip()
             tgl_pelaks = r[30].strip()
             p1_nama = daftar_petugas[0]["nama"] if daftar_petugas else "-"
-            
             label_display = f"No. {no_st} | {pt_1} | {tgl_pelaks} (Petugas: {p1_nama})"
             
             riwayat.append({
@@ -155,7 +189,6 @@ def load_riwayat_data():
     except Exception as e:
         return []
 
-# Inisialisasi Master Data
 try:
     pegawai_data, perusahaan_data = load_master_data()
 except Exception as e:
@@ -271,12 +304,14 @@ def generate_docx_buffer(data_gen):
         else:
             c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nKepala Subbagian Umum"
             
+    # Set RATA KANAN pada c_prefix agar a.n/Plh menempel tepat di samping c_jab
     for p in c_prefix.paragraphs:
         p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         for r in p.runs:
             r.font.name = "Arial"
 
     for p in c_jab.paragraphs:
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         for r in p.runs:
             r.font.name = "Arial"
                 
@@ -303,7 +338,7 @@ def generate_docx_buffer(data_gen):
     return docx_buffer
 
 # ==========================================
-# FUNGSI RENDER PRATINJAU DOKUMEN (STANDALONE HTML)
+# FUNGSI RENDER PRATINJAU DOKUMEN (HTML 100% PRESISI)
 # ==========================================
 def render_preview_html(data):
     petugas_rows = ""
@@ -399,10 +434,6 @@ def render_preview_html(data):
     padding: 1.5px 0;
     vertical-align: top;
   }}
-  .ttd-box {{
-    margin-top: 25px;
-    margin-bottom: 20px;
-  }}
   .tembusan {{
     font-size: 11.5px;
     line-height: 1.4;
@@ -448,20 +479,27 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <table class="ttd-box">
+    <!-- BLOK TANDA TANGAN 100% PRESISI VERTIKAL -->
+    <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
-        <td style="width: 45%;"></td>
-        <td style="width: 55%; padding-left: 10px;">
-          Malang, [@TanggalND]<br><br>
-          <table style="width: 100%;">
+        <td style="width: 42%;"></td>
+        <td style="width: 58%;">
+          <table style="width: 100%; border-collapse: collapse;">
             <tr>
-              <td style="width: 35px; text-align: right; padding-right: 6px;">{prefix_txt}</td>
-              <td style="text-align: left;">{jab_txt}</td>
+              <td style="width: 35px;"></td>
+              <td style="text-align: left; padding-bottom: 12px;">Malang, [@TanggalND]</td>
+            </tr>
+            <tr>
+              <td style="width: 35px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
+                {prefix_txt}
+              </td>
+              <td style="text-align: left; vertical-align: top;">
+                {jab_txt}
+                <div style="margin-top: 25px; color: #555; font-size: 11.5px;">Ditandatangani secara elektronik</div>
+                <div style="margin-top: 3px; font-weight: bold; color: #000;">{data['nama_pejabat_ttd']}</div>
+              </td>
             </tr>
           </table>
-          <br><br><br>
-          <span style="color: #666; font-size: 11.5px;">Ditandatangani secara elektronik</span><br>
-          {data['nama_pejabat_ttd']}
         </td>
       </tr>
     </table>
@@ -476,7 +514,7 @@ def render_preview_html(data):
     return html
 
 # ==========================================
-# INTERFACE UTAMA DENGAN TAB NAVIGASI
+# INTERFACE UTAMA
 # ==========================================
 st.title("📋 Sistem Otomasi Surat Tugas KPPBC TMC Malang")
 st.caption("Input Real-Time Database Spreadsheet & Generator Dokumen Word (.docx) Resmi")
@@ -487,131 +525,187 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     st.divider()
-    st.markdown("**Petunjuk:**")
-    st.caption("• Tab **Input Baru**: Untuk rekam penugasan baru ke Spreadsheet.")
-    st.caption("• Tab **Riwayat & Cetak Ulang**: Untuk mencari dan mencetak ulang penugasan yang pernah dibuat.")
+    st.markdown("**Petunjuk Pengisian Cepat:**")
+    st.caption("1. Isi Permohonan, maka Kegiatan Baku otomatis terisi.")
+    st.caption("2. Gunakan tombol [+] jika ada lebih dari 1 petugas atau 2 pabrik.")
+    st.caption("3. Klik Simpan & Unduh Dokumen.")
 
 tab_input, tab_riwayat = st.tabs(["📝 Input Surat Tugas Baru", "🕒 Riwayat & Cetak Ulang"])
 
 # ==========================================
-# TAB 1: FORM INPUT SURAT TUGAS BARU
+# TAB 1: FORM INPUT SURAT TUGAS BARU (EFISIEN MOBILE)
 # ==========================================
 with tab_input:
-    with st.form("form_surat_tugas", clear_on_submit=False):
-        # 1. DATA PEMOHON
-        st.subheader("1. Data Surat Pemohon")
-        col1, col2 = st.columns(2)
+    # -------------------------------------------------------------
+    # 1. DATA SURAT PEMOHON
+    # -------------------------------------------------------------
+    st.subheader("1. Data Surat Pemohon")
+    
+    st.markdown("##### 🏢 Pabrik 1 (Pemohon Utama)")
+    pt_1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=[""] + list_perusahaan, index=0)
+    
+    c_p1_1, c_p1_2 = st.columns([1.2, 1])
+    with c_p1_1:
+        no_surat_1 = st.text_input("Nomor Surat Pemohon 1*", placeholder="Contoh: 63/IX/BBSA/2026")
+    with c_p1_2:
+        tgl_surat_1 = st.date_input("Tanggal Surat 1*", value=datetime.date.today())
         
-        with col1:
-            st.markdown("**Pabrik 1 (Pemohon Utama)**")
-            pt_1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=[""] + list_perusahaan, index=0)
-            no_surat_1 = st.text_input("Nomor Surat Pemohon 1*", placeholder="Contoh: 00236/MS/X/2026")
-            tgl_surat_1 = st.date_input("Tanggal Surat Pemohon 1*", value=datetime.date.today())
-            permohonan_1 = st.text_area("Perihal / Permohonan 1*", placeholder="Permohonan Pemeriksaan dan Penyegelan Cukai Hasil Tembakau untuk Ekspor")
-            kegiatan_1 = st.text_input("Kegiatan Baku 1 (Pelaksanaan Tugas)*", placeholder="Pemeriksaan dan Penyegelan Cukai Hasil Tembakau untuk Ekspor")
+    permohonan_1 = st.text_area(
+        "Perihal / Permohonan 1*",
+        key="in_permohonan_1",
+        placeholder="Permohonan Pembukaan Segel Hasil Tembakau...",
+        on_change=on_permohonan_1_change,
+        height=75
+    )
+    
+    kegiatan_1 = st.text_input(
+        "Kegiatan Baku 1 (Otomatis dari Permohonan, Bisa Diedit)*",
+        key="in_kegiatan_1",
+        placeholder="Pembukaan Segel Hasil Tembakau..."
+    )
+    
+    pilihan_lokasi_1 = st.selectbox("Pilihan Titik Lokasi Pabrik 1 (1 - 12)", options=list(range(1, 13)), index=0)
+    alamat_pabrik_1 = ""
+    if pt_1 and pt_1 in perusahaan_data:
+        alamat_pabrik_1 = perusahaan_data[pt_1].get(pilihan_lokasi_1, "")
+    st.text_area("Alamat Terpilih Pabrik 1", value=alamat_pabrik_1, disabled=True, height=65)
+
+    # OPSI PABRIK 2 (DINAMIS UNTUK MOBILE)
+    tambah_pt2 = st.checkbox("➕ Tambah Pabrik Kedua (Jika 1 Surat Tugas untuk 2 Pabrik)", value=False)
+    
+    pt_2, no_surat_2, tgl_surat_2, permohonan_2, kegiatan_2, alamat_pabrik_2 = "", "", None, "", "", ""
+    if tambah_pt2:
+        st.markdown("---")
+        st.markdown("##### 🏢 Pabrik 2 (Pemohon Kedua)")
+        pt_2 = st.selectbox("Nama Perusahaan / Pabrik 2*", options=[""] + list_perusahaan, index=0)
+        c_p2_1, c_p2_2 = st.columns([1.2, 1])
+        with c_p2_1:
+            no_surat_2 = st.text_input("Nomor Surat Pemohon 2*", placeholder="Nomor surat kedua")
+        with c_p2_2:
+            tgl_surat_2 = st.date_input("Tanggal Surat 2*", value=None)
             
-            pilihan_lokasi_1 = st.selectbox("Pilihan Lokasi Pabrik 1 (1 - 12)", options=list(range(1, 13)), index=0)
-            alamat_pabrik_1 = ""
-            if pt_1 and pt_1 in perusahaan_data:
-                alamat_pabrik_1 = perusahaan_data[pt_1].get(pilihan_lokasi_1, "")
-            st.text_area("Alamat Terpilih Pabrik 1", value=alamat_pabrik_1, disabled=True, height=70)
+        permohonan_2 = st.text_area(
+            "Perihal / Permohonan 2*",
+            key="in_permohonan_2",
+            placeholder="Permohonan pabrik kedua...",
+            on_change=on_permohonan_2_change,
+            height=75
+        )
+        kegiatan_2 = st.text_input(
+            "Kegiatan Baku 2 (Otomatis dari Permohonan 2, Bisa Diedit)*",
+            key="in_kegiatan_2"
+        )
+        pilihan_lokasi_2 = st.selectbox("Pilihan Titik Lokasi Pabrik 2 (1 - 12)", options=list(range(1, 13)), index=0)
+        if pt_2 and pt_2 in perusahaan_data:
+            alamat_pabrik_2 = perusahaan_data[pt_2].get(pilihan_lokasi_2, "")
+        st.text_area("Alamat Terpilih Pabrik 2", value=alamat_pabrik_2, disabled=True, height=65)
 
-        with col2:
-            st.markdown("**Pabrik 2 (Opsional / Jika Ada)**")
-            pt_2 = st.selectbox("Nama Perusahaan / Pabrik 2", options=[""] + list_perusahaan, index=0)
-            no_surat_2 = st.text_input("Nomor Surat Pemohon 2", placeholder="Kosongkan jika tidak ada")
-            tgl_surat_2 = st.date_input("Tanggal Surat Pemohon 2", value=None)
-            permohonan_2 = st.text_area("Perihal / Permohonan 2", placeholder="Kosongkan jika tidak ada")
-            kegiatan_2 = st.text_input("Kegiatan Baku 2", placeholder="Kosongkan jika tidak ada")
-            
-            pilihan_lokasi_2 = st.selectbox("Pilihan Lokasi Pabrik 2 (1 - 12)", options=list(range(1, 13)), index=0)
-            alamat_pabrik_2 = ""
-            if pt_2 and pt_2 in perusahaan_data:
-                alamat_pabrik_2 = perusahaan_data[pt_2].get(pilihan_lokasi_2, "")
-            st.text_area("Alamat Terpilih Pabrik 2", value=alamat_pabrik_2, disabled=True, height=70)
+    st.divider()
 
-        st.divider()
+    # -------------------------------------------------------------
+    # 2. WAKTU PELAKSANAAN TUGAS
+    # -------------------------------------------------------------
+    st.subheader("2. Waktu Pelaksanaan Tugas")
+    c_wkt1, c_wkt2 = st.columns(2)
+    with c_wkt1:
+        tgl_pelaksanaan = st.date_input("Tanggal Pelaksanaan Tugas*", value=datetime.date.today())
+    with c_wkt2:
+        nama_hari_en = tgl_pelaksanaan.strftime("%A")
+        nama_hari_id = HARI_INDONESIA.get(nama_hari_en, nama_hari_en)
+        st.text_input("Hari Pelaksanaan (Otomatis)", value=nama_hari_id, disabled=True)
 
-        # 2. WAKTU PELAKSANAAN
-        st.subheader("2. Waktu Pelaksanaan Tugas")
-        col_tgl1, col_tgl2 = st.columns(2)
-        with col_tgl1:
-            tgl_pelaksanaan = st.date_input("Tanggal Pelaksanaan Tugas*", value=datetime.date.today())
-        with col_tgl2:
-            nama_hari_en = tgl_pelaksanaan.strftime("%A")
-            nama_hari_id = HARI_INDONESIA.get(nama_hari_en, nama_hari_en)
-            st.text_input("Hari Pelaksanaan (Otomatis)", value=nama_hari_id, disabled=True)
+    st.divider()
 
-        st.divider()
+    # -------------------------------------------------------------
+    # 3. PERSONEL TIM PETUGAS (DINAMIS & EFISIEN MOBILE)
+    # -------------------------------------------------------------
+    st.subheader("3. Tim Petugas Pemeriksa")
+    st.caption("Secara bawaan hanya menampilkan Petugas 1. Gunakan tombol [+] jika ada petugas tambahan.")
 
-        # 3. TIM PETUGAS
-        st.subheader("3. Tim Petugas Pemeriksa")
-        data_petugas_terpilih = []
-        for i in range(1, 7):
-            col_p1, col_p2 = st.columns([1.5, 2])
-            with col_p1:
-                lbl = f"Nama Petugas {i}*" if i == 1 else f"Nama Petugas {i}"
-                sel_nama = st.selectbox(lbl, options=["-- Tidak Ditugaskan --"] + list_pegawai, index=0, key=f"p_{i}")
-            
-            p_nip, p_pangkat, p_jabatan = "", "", ""
-            if sel_nama and sel_nama != "-- Tidak Ditugaskan --":
-                detail = pegawai_data.get(sel_nama, {})
-                p_nip = detail.get("nip", "")
-                p_pangkat = detail.get("pangkat", "")
-                p_jabatan = detail.get("jabatan", "")
-                data_petugas_terpilih.append({
-                    "no": len(data_petugas_terpilih) + 1,
-                    "nama": sel_nama,
-                    "nip": p_nip,
-                    "pangkat": p_pangkat,
-                    "jabatan": p_jabatan
-                })
-                
-            with col_p2:
-                cp1, cp2 = st.columns(2)
-                cp1.text_input(f"Pangkat {i}", value=p_pangkat, disabled=True, key=f"pkt_{i}")
-                cp2.text_input(f"Jabatan {i}", value=p_jabatan, disabled=True, key=f"jbt_{i}")
-
-        st.divider()
-
-        # 4. PENANDATANGAN
-        st.subheader("4. Konfigurasi Penandatangan Surat Tugas")
-        col_ttd1, col_ttd2 = st.columns(2)
+    data_petugas_terpilih = []
+    
+    # Render hanya sejumlah petugas yang aktif
+    for i in range(1, st.session_state["num_petugas"] + 1):
+        st.markdown(f"**👤 Petugas {i}**")
+        sel_nama = st.selectbox(
+            f"Nama Petugas {i}*",
+            options=["-- Pilih Pegawai --"] + list_pegawai,
+            index=0,
+            key=f"dyn_petugas_{i}"
+        )
         
-        with col_ttd1:
-            tipe_ttd = st.radio(
-                "Format Penandatangan:",
-                options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
+        p_nip, p_pangkat, p_jabatan = "", "", ""
+        if sel_nama and sel_nama != "-- Pilih Pegawai --":
+            detail = pegawai_data.get(sel_nama, {})
+            p_nip = detail.get("nip", "")
+            p_pangkat = detail.get("pangkat", "")
+            p_jabatan = detail.get("jabatan", "")
+            data_petugas_terpilih.append({
+                "no": len(data_petugas_terpilih) + 1,
+                "nama": sel_nama,
+                "nip": p_nip,
+                "pangkat": p_pangkat,
+                "jabatan": p_jabatan
+            })
+            
+        cp1, cp2 = st.columns(2)
+        cp1.text_input(f"Pangkat/Gol {i}", value=p_pangkat, disabled=True, key=f"dyn_pkt_{i}")
+        cp2.text_input(f"Jabatan {i}", value=p_jabatan, disabled=True, key=f"dyn_jbt_{i}")
+        st.write("")
+
+    # Tombol Tambah/Kurangi Petugas (Mobile Friendly)
+    col_tambah_p, col_kurang_p = st.columns(2)
+    with col_tambah_p:
+        if st.button("➕ Tambah Petugas", disabled=(st.session_state["num_petugas"] >= 6), use_container_width=True):
+            st.session_state["num_petugas"] += 1
+            st.rerun()
+    with col_kurang_p:
+        if st.button("➖ Kurangi Petugas", disabled=(st.session_state["num_petugas"] <= 1), use_container_width=True):
+            st.session_state["num_petugas"] -= 1
+            st.rerun()
+
+    st.divider()
+
+    # -------------------------------------------------------------
+    # 4. KONFIGURASI PENANDATANGAN
+    # -------------------------------------------------------------
+    st.subheader("4. Konfigurasi Penandatangan Surat Tugas")
+    tipe_ttd = st.radio(
+        "Format Penandatangan:",
+        options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
+        index=0
+    )
+    is_plh = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False)
+
+    if tipe_ttd == "Kepala Kantor Langsung":
+        if is_plh:
+            st.info("Penandatangan: Plh. Kepala Kantor")
+            nama_pejabat_ttd = st.selectbox(
+                "Pilih Pejabat yang Ditunjuk sebagai Plh. Kepala Kantor*:",
+                options=[""] + list_pegawai,
                 index=0
             )
-            is_plh = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False)
+        else:
+            nama_pejabat_ttd = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores")
+    else:
+        if is_plh:
+            st.info("Penandatangan: a.n. Kepala Kantor ... Plh. Kepala Subbagian Umum")
+            nama_pejabat_ttd = st.selectbox(
+                "Pilih Pejabat yang Ditunjuk sebagai Plh. Kasubag Umum*:",
+                options=[""] + list_pegawai,
+                index=0
+            )
+        else:
+            nama_pejabat_ttd = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca")
 
-        with col_ttd2:
-            if tipe_ttd == "Kepala Kantor Langsung":
-                if is_plh:
-                    st.info("Penandatangan: Plh. Kepala Kantor")
-                    nama_pejabat_ttd = st.selectbox(
-                        "Pilih Pejabat yang Ditunjuk sebagai Plh. Kepala Kantor*:",
-                        options=[""] + list_pegawai,
-                        index=0
-                    )
-                else:
-                    nama_pejabat_ttd = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores")
-            else:
-                if is_plh:
-                    st.info("Penandatangan: a.n. Kepala Kantor ... Plh. Kepala Subbagian Umum")
-                    nama_pejabat_ttd = st.selectbox(
-                        "Pilih Pejabat yang Ditunjuk sebagai Plh. Kasubag Umum*:",
-                        options=[""] + list_pegawai,
-                        index=0
-                    )
-                else:
-                    nama_pejabat_ttd = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca")
+    st.divider()
+    
+    # -------------------------------------------------------------
+    # TOMBOL AKSI UTAMA
+    # -------------------------------------------------------------
+    btn_simpan_eksekusi = st.button("💾 Simpan ke Database Spreadsheet", type="primary", use_container_width=True)
 
-        st.divider()
-        submit_simpan = st.form_submit_button("💾 Simpan ke Database Spreadsheet", use_container_width=True, type="primary")
-
-    if submit_simpan:
+    if btn_simpan_eksekusi:
         if not pt_1:
             st.error("Nama Perusahaan / Pabrik 1 wajib dipilih!")
         elif not no_surat_1:
@@ -727,7 +821,6 @@ with tab_riwayat:
         label_options = [item["label"] for item in riwayat_list]
         selected_label = st.selectbox("Cari & Pilih Surat Tugas:", options=label_options, index=0)
         
-        # Ambil data terpilih
         selected_item = next(item for item in riwayat_list if item["label"] == selected_label)
         
         st.divider()
@@ -765,17 +858,14 @@ with tab_riwayat:
                 else:
                     nama_ttd_r = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca", key="r_def_subag")
 
-        # Pasang konfigurasi tanda tangan ke objek data
         data_cetak_ulang = dict(selected_item)
         data_cetak_ulang["tipe_ttd"] = tipe_ttd_r
         data_cetak_ulang["is_plh"] = is_plh_r
         data_cetak_ulang["nama_pejabat_ttd"] = nama_ttd_r if nama_ttd_r.strip() else "Kukuh Hanna Prapanca"
 
-        # Tampilkan Pratinjau
         with st.expander("👁️ Pratinjau Dokumen Cetak Ulang (Klik untuk Buka/Tutup)", expanded=True):
             components.html(render_preview_html(data_cetak_ulang), height=850, scrolling=True)
 
-        # Tombol Download Cetak Ulang
         try:
             buf_r = generate_docx_buffer(data_cetak_ulang)
             file_name_r = f"Cetak_Ulang_ST_{data_cetak_ulang['no_urut']}_{data_cetak_ulang['pt_1'].replace(' ', '_')}.docx"
