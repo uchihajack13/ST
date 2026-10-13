@@ -189,10 +189,9 @@ with st.form("form_surat_tugas", clear_on_submit=False):
             p_nip = detail.get("nip", "")
             p_pangkat = detail.get("pangkat", "")
             p_jabatan = detail.get("jabatan", "")
-            p_num = len(data_petugas_terpilih) + 1
             data_petugas_terpilih.append({
-                "no": p_num,
-                "label_nama": "Nama",  # Will be adjusted after loop
+                "no": len(data_petugas_terpilih) + 1,
+                "label_nama": "Nama",
                 "nama": sel_nama,
                 "nip": p_nip,
                 "pangkat": p_pangkat,
@@ -203,6 +202,13 @@ with st.form("form_surat_tugas", clear_on_submit=False):
             cp1, cp2 = st.columns(2)
             cp1.text_input(f"Pangkat {i}", value=p_pangkat, disabled=True, key=f"pkt_{i}")
             cp2.text_input(f"Jabatan {i}", value=p_jabatan, disabled=True, key=f"jbt_{i}")
+
+    # Set label nomor urut jika petugas lebih dari 1 orang
+    if len(data_petugas_terpilih) > 1:
+        for idx_p, p_item in enumerate(data_petugas_terpilih, start=1):
+            p_item["label_nama"] = f"{idx_p}. Nama"
+    elif len(data_petugas_terpilih) == 1:
+        data_petugas_terpilih[0]["label_nama"] = "Nama"
 
     st.divider()
 
@@ -301,10 +307,6 @@ if submit_simpan:
                 ws_target.append_row(row_payload, value_input_option="USER_ENTERED")
                 st.success(f"Berhasil menyimpan Surat Tugas No. Urut {next_no} ke Database Spreadsheet!")
                 
-                    # Sesuaikan label nama petugas jika lebih dari 1 orang
-    for p in data_petugas_terpilih:
-        p["label_nama"] = f"{p['no']}. Nama" if len(data_petugas_terpilih) > 1 else "Nama"
-
                 st.session_state["last_submitted_data"] = {
                     "no_urut": next_no,
                     "pt_1": pt_1,
@@ -340,7 +342,6 @@ if "last_submitted_data" in st.session_state:
     st.write(f"Data Siap Cetak: **{data_gen['pt_1']}** (Pelaksanaan: {data_gen['hari']}, {data_gen['tgl_pelaksanaan']})")
     
     try:
-        # Pilih template file sesuai tipe penandatangan
         if data_gen["tipe_ttd"] == "Kepala Kantor Langsung":
             template_path = "template_st_kk.docx"
             prefix_ttd = "Plh." if data_gen["is_plh"] else ""
@@ -353,7 +354,7 @@ if "last_submitted_data" in st.session_state:
         doc = DocxTemplate(template_path)
         
         context = {
-            "NOMOR_ND": "[@NomorND]",  # Siap dinomori otomatis di Nadine
+            "NOMOR_ND": "[@NomorND]",
             "TANGGAL_ND": "[@TanggalND]",
             "NAMA_PERUSAHAAN": data_gen["pt_1"],
             "NOMOR_SURAT": data_gen["no_surat_1"],
