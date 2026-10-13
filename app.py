@@ -305,8 +305,12 @@ def generate_docx_buffer(data_gen):
         r_alm2 = p_t.add_run(data_gen["alamat_pabrik_2"])
         r_alm2.font.name = "Arial"
 
-    # 5. Table 2 (Tanda Tangan)
+    # 5. Table 2 (Tanda Tangan - a.n dan Plh 100% Sejajar di Kolom Kiri)
     t_ttd = doc.tables[2]
+    # Kembalikan ke 4 baris standar jika ada row tambahan sebelumnya
+    while len(t_ttd.rows) > 4:
+        t_ttd._tbl.remove(t_ttd.rows[2]._tr)
+        
     c_prefix = t_ttd.rows[1].cells[0]
     c_jab = t_ttd.rows[1].cells[1]
     
@@ -317,34 +321,70 @@ def generate_docx_buffer(data_gen):
         else:
             c_prefix.text = ""
             c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+        
+        for p in c_prefix.paragraphs:
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            for r in p.runs:
+                r.font.name = "Arial"
+        for p in c_jab.paragraphs:
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for r in p.runs:
+                r.font.name = "Arial"
     else:
-        c_prefix.text = "a.n"
+        # a.n. Kasubag Umum
         if data_gen["is_plh"]:
-            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nPlh. Kepala Subbagian Umum"
-        else:
-            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nKepala Subbagian Umum"
+            # Sisipkan baris terpisah agar 'Plh.' berada di kolom kiri sejajar dengan 'a.n'
+            new_row = t_ttd.add_row()
+            t_ttd.rows[1]._tr.addnext(new_row._tr)
             
-    # Set RATA KANAN pada c_prefix agar a.n/Plh menempel tepat di samping c_jab
-    for p in c_prefix.paragraphs:
-        p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        for r in p.runs:
-            r.font.name = "Arial"
+            c_prefix.text = "a.n"
+            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+            
+            c_plh = t_ttd.rows[2].cells[0]
+            c_subjab = t_ttd.rows[2].cells[1]
+            c_plh.text = "Plh."
+            c_subjab.text = "Kepala Subbagian Umum"
+            
+            for p in c_prefix.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                for r in p.runs:
+                    r.font.name = "Arial"
+            for p in c_jab.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for r in p.runs:
+                    r.font.name = "Arial"
+            for p in c_plh.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                for r in p.runs:
+                    r.font.name = "Arial"
+            for p in c_subjab.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for r in p.runs:
+                    r.font.name = "Arial"
+        else:
+            c_prefix.text = "a.n"
+            c_jab.text = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang\nKepala Subbagian Umum"
+            for p in c_prefix.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+                for r in p.runs:
+                    r.font.name = "Arial"
+            for p in c_jab.paragraphs:
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for r in p.runs:
+                    r.font.name = "Arial"
 
-    for p in c_jab.paragraphs:
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        for r in p.runs:
-            r.font.name = "Arial"
-                
-    # Jeda lega & warna abu-abu resmi BSrE (#BFBFBF)
-    c_elek = t_ttd.rows[2].cells[1]
+    # Row TTE dan Nama
+    idx_elek = 3 if (data_gen["tipe_ttd"] != "Kepala Kantor Langsung" and data_gen["is_plh"]) else 2
+    idx_nama = idx_elek + 1
+    
+    c_elek = t_ttd.rows[idx_elek].cells[1]
     c_elek.text = "\n\n\n\n\nDitandatangani secara elektronik"
     for p in c_elek.paragraphs:
         for r in p.runs:
             r.font.name = "Arial"
             r.font.color.rgb = RGBColor(191, 191, 191)
 
-    # Nama penandatangan dipastikan TIDAK BOLD (NORMAL)
-    c_nama = t_ttd.rows[3].cells[1]
+    c_nama = t_ttd.rows[idx_nama].cells[1]
     c_nama.text = data_gen["nama_pejabat_ttd"]
     for p in c_nama.paragraphs:
         for r in p.runs:
@@ -404,14 +444,34 @@ def render_preview_html(data):
         tempat_full += f" serta <b>{data['pt_2']}</b>, {data['alamat_pabrik_2']}"
 
     if data["tipe_ttd"] == "Kepala Kantor Langsung":
-        prefix_txt = "Plh." if data["is_plh"] else ""
-        jab_txt = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+        prefix_1 = "Plh." if data["is_plh"] else ""
+        jab_1 = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
+        baris_2_html = ""
         temb_txt = "1. Kepala Subbagian Umum<br>2. Kepala Seksi Pelayanan Kepabeanan dan Cukai II<br>3. Kepala Seksi Kepatuhan Internal"
     else:
-        prefix_txt = "a.n"
-        sub_jab = "Plh. Kepala Subbagian Umum" if data["is_plh"] else "Kepala Subbagian Umum"
-        jab_txt = f"Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang<br>{sub_jab}"
+        prefix_1 = "a.n"
+        jab_1 = "Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang"
         temb_txt = "1. Kepala Kantor Pengawasan dan Pelayanan Bea dan Cukai Tipe Madya Cukai Malang<br>2. Kepala Subbagian Umum<br>3. Kepala Seksi Pelayanan Kepabeanan dan Cukai II<br>4. Kepala Seksi Kepatuhan Internal"
+        if data["is_plh"]:
+            baris_2_html = """
+            <tr>
+              <td style="width: 35px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
+                Plh.
+              </td>
+              <td style="text-align: left; vertical-align: top;">
+                Kepala Subbagian Umum
+              </td>
+            </tr>
+            """
+        else:
+            baris_2_html = """
+            <tr>
+              <td></td>
+              <td style="text-align: left; vertical-align: top;">
+                Kepala Subbagian Umum
+              </td>
+            </tr>
+            """
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -510,7 +570,7 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <!-- BLOK TANDA TANGAN DENGAN WARNA RESMI TTE #BFBFBF & NAMA TIDAK BOLD -->
+    <!-- BLOK TANDA TANGAN: a.n dan Plh 100% SEJAJAR DI KOLOM KIRI -->
     <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
         <td style="width: 42%;"></td>
@@ -522,10 +582,16 @@ def render_preview_html(data):
             </tr>
             <tr>
               <td style="width: 35px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
-                {prefix_txt}
+                {prefix_1}
               </td>
               <td style="text-align: left; vertical-align: top;">
-                {jab_txt}
+                {jab_1}
+              </td>
+            </tr>
+            {baris_2_html}
+            <tr>
+              <td></td>
+              <td style="text-align: left; vertical-align: top;">
                 <!-- Teks Ditandatangani secara elektronik dengan warna resmi #BFBFBF -->
                 <div style="margin-top: 75px; color: #bfbfbf; font-size: 11.5px;">Ditandatangani secara elektronik</div>
                 <!-- Nama penandatangan TIDAK BOLD (font-weight: normal) -->
