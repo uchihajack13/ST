@@ -1,5 +1,8 @@
+import os
 import io
 import re
+import lzma
+import base64
 import datetime
 import streamlit as st
 import streamlit.components.v1 as components
@@ -10,14 +13,139 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 # ==========================================
-# KONFIGURASI HALAMAN (MOBILE-FIRST)
+# KONFIGURASI HALAMAN (MOBILE-FIRST & RESPONSIVE)
 # ==========================================
 st.set_page_config(
-    page_title="Generator Surat Tugas KPPBC TMC Malang",
+    page_title="Generator Surat Tugas — KPPBC TMC Malang",
     page_icon="📋",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# ==========================================
+# ARSITEKTUR UI/UX: CUSTOM CSS RINGAN (ZERO-JS)
+# ==========================================
+st.markdown("""
+<style>
+    /* 1. Optimasi Ruang Layar (Mobile & Desktop) */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2.5rem !important;
+        max-width: 1080px !important;
+    }
+    
+    /* 2. Banner Header Instansi Profesional (Kemenkeu / Bea Cukai Theme) */
+    .bc-header-card {
+        background: linear-gradient(135deg, #0f2942 0%, #1b4368 100%);
+        color: #ffffff;
+        padding: 1.15rem 1.4rem;
+        border-radius: 12px;
+        border-left: 6px solid #d4af37;
+        box-shadow: 0 4px 14px rgba(15, 41, 66, 0.12);
+        margin-bottom: 1rem;
+    }
+    .bc-header-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin: 0;
+        letter-spacing: 0.2px;
+        color: #ffffff !important;
+        line-height: 1.3;
+    }
+    .bc-header-sub {
+        font-size: 0.84rem;
+        color: #dbe7f3;
+        margin-top: 0.25rem;
+        margin-bottom: 0;
+    }
+    
+    /* 3. Indikator Status Cepat (Quick Metrics Strip) */
+    .metric-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 0.75rem;
+    }
+    .metric-pill {
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        color: #ffffff;
+        padding: 4px 11px;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 500;
+    }
+    .metric-pill b {
+        color: #ffd966;
+    }
+
+    /* 4. Header Seksi di Dalam Kartu */
+    .section-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background-color: #f0f5fa;
+        color: #0f2942;
+        padding: 5px 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.92rem;
+        border-left: 4px solid #0f2942;
+        margin-bottom: 0.65rem;
+    }
+
+    /* 5. Pill Ringkas Detail Pegawai & Lokasi (Hemat Ruang Vertikal HP) */
+    .info-pill {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-left: 3.5px solid #1b4368;
+        padding: 7px 11px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        color: #334155;
+        margin-top: -4px;
+        margin-bottom: 10px;
+        line-height: 1.4;
+    }
+    .info-pill-warn {
+        background-color: #fffbeb;
+        border: 1px solid #fde68a;
+        border-left: 3.5px solid #d97706;
+        padding: 7px 11px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        color: #92400e;
+        margin-top: -4px;
+        margin-bottom: 10px;
+    }
+
+    /* 6. Ergonomi Tombol Sentuh (Touch Target >= 44px untuk HP) */
+    div.stButton > button, div.stDownloadButton > button {
+        min-height: 44px;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        transition: all 0.15s ease-in-out;
+    }
+    
+    /* 7. Styling Tab Navigasi Lebih Tegas */
+    button[data-baseweb="tab"] {
+        font-weight: 600 !important;
+        font-size: 0.92rem !important;
+        padding: 10px 16px !important;
+    }
+    
+    @media (max-width: 640px) {
+        .block-container {
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-top: 1rem !important;
+        }
+        .bc-header-title {
+            font-size: 1.1rem;
+        }
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Kamus Nama Hari & Bulan Bahasa Indonesia
 HARI_INDONESIA = {
@@ -39,11 +167,12 @@ def format_tanggal_indo(d: datetime.date) -> str:
 def strip_permohonan(text: str) -> str:
     if not text:
         return ""
-    # Menghapus kata "permohonan" atau "permohonan:" di awal teks
     clean = re.sub(r'^(permohonan\s+|permohonan:\s*)', '', text.strip(), flags=re.IGNORECASE).strip()
     return clean
 
-# Inisialisasi Session State untuk Efisiensi Mobile & Otomatisasi
+# ==========================================
+# INISIALISASI SESSION STATE & CALLBACKS
+# ==========================================
 if "num_petugas" not in st.session_state:
     st.session_state["num_petugas"] = 1
 
@@ -69,13 +198,30 @@ def on_permohonan_2_change():
         st.session_state["in_kegiatan_2"] = strip_permohonan(cur2)
         st.session_state["prev_permohonan_2"] = cur2
 
+def reset_form_input():
+    st.session_state["num_petugas"] = 1
+    st.session_state["in_permohonan_1"] = ""
+    st.session_state["in_kegiatan_1"] = ""
+    st.session_state["prev_permohonan_1"] = ""
+    st.session_state["in_permohonan_2"] = ""
+    st.session_state["in_kegiatan_2"] = ""
+    st.session_state["prev_permohonan_2"] = ""
+    for k in list(st.session_state.keys()):
+        if k.startswith("dyn_petugas_") or k in ("sel_pt1", "sel_pt2", "in_nosurat1", "in_nosurat2", "chk_pt2"):
+            del st.session_state[k]
+    if "last_submitted_data" in st.session_state:
+        del st.session_state["last_submitted_data"]
+
 # ==========================================
-# KONEKSI & CACHING GOOGLE SHEETS
+# KONEKSI & CACHING GOOGLE SHEETS (ANTI-TERTUKAR DATABASE)
 # ==========================================
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
 ]
+
+# ID Resmi Spreadsheet DATABASE SURAT TUGAS
+SURAT_TUGAS_SHEET_ID = "1lMZmVmMXZO1SRq2JuAWLLN3EhoNHLuYWvd265WySVww"
 
 @st.cache_resource
 def init_gspread_client():
@@ -88,16 +234,42 @@ def init_gspread_client():
 
 def get_spreadsheet():
     client = init_gspread_client()
-    sheet_id = st.secrets.get("SPREADSHEET_ID", "1lMZmVmMXZO1SRq2JuAWLLN3EhoNHLuYWvd265WySVww")
-    return client.open_by_key(sheet_id)
+    # Prioritaskan ST_SPREADSHEET_ID atau langsung ke SURAT_TUGAS_SHEET_ID
+    # Jika SPREADSHEET_ID di secrets mengarah ke file lain (misal DATABASE BA_CK-5),
+    # sistem otomatis mendeteksi dan mengunci kembali ke DATABASE SURAT TUGAS.
+    configured_id = st.secrets.get("ST_SPREADSHEET_ID", "")
+    if configured_id:
+        return client.open_by_key(configured_id)
+    try:
+        return client.open_by_key(SURAT_TUGAS_SHEET_ID)
+    except Exception:
+        fallback_id = st.secrets.get("SPREADSHEET_ID", SURAT_TUGAS_SHEET_ID)
+        return client.open_by_key(fallback_id)
+
+def find_worksheet_flexible(ss, candidate_names):
+    """Mencari worksheet secara fleksibel (case-insensitive & tahan terhadap nama alternatif)."""
+    all_ws = ss.worksheets()
+    # 1. Exact match atau case-insensitive match
+    for cand in candidate_names:
+        cand_clean = cand.strip().upper()
+        for ws in all_ws:
+            if ws.title.strip().upper() == cand_clean:
+                return ws
+    # 2. Substring match
+    for cand in candidate_names:
+        cand_clean = cand.strip().upper()
+        for ws in all_ws:
+            if cand_clean in ws.title.strip().upper():
+                return ws
+    return ss.worksheet(candidate_names[0])
 
 @st.cache_data(ttl=600)
 def load_master_data():
     ss = get_spreadsheet()
     
     # 1. Master Pegawai (DATA PEGAWAI: B4:F111)
-    ws_pegawai = ss.worksheet("DATA PEGAWAI")
-    raw_pegawai = ws_pegawai.get("B4:F111")
+    ws_pegawai = find_worksheet_flexible(ss, ["DATA PEGAWAI", "PEGAWAI"])
+    raw_pegawai = ws_pegawai.get("B4:F120")
     
     pegawai_dict = {}
     for row in raw_pegawai:
@@ -112,9 +284,9 @@ def load_master_data():
                 "jabatan": jabatan
             }
 
-    # 2. Master Perusahaan (DATA NPPBKC: B2:AK179)
-    ws_nppbkc = ss.worksheet("DATA NPPBKC")
-    raw_nppbkc = ws_nppbkc.get("B2:AK179")
+    # 2. Master Perusahaan (DATA NPPBKC: B2:AK190)
+    ws_nppbkc = find_worksheet_flexible(ss, ["DATA NPPBKC", "NPPBKC"])
+    raw_nppbkc = ws_nppbkc.get("B2:AK190")
     
     perusahaan_dict = {}
     for row in raw_nppbkc:
@@ -133,7 +305,7 @@ def load_master_data():
 def load_riwayat_data():
     try:
         ss = get_spreadsheet()
-        ws = ss.worksheet("Sheet1")
+        ws = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
         all_rows = ws.get_all_values()
         if len(all_rows) <= 1:
             return []
@@ -183,12 +355,14 @@ def load_riwayat_data():
                 "kegiatan_2": r[28].strip(),
                 "hari": r[29].strip(),
                 "tgl_pelaksanaan": tgl_pelaks,
+                "lokasi_idx_1": r[31].strip() or "1",
                 "alamat_pabrik_1": r[32].strip(),
+                "lokasi_idx_2": r[33].strip() or "1",
                 "alamat_pabrik_2": r[34].strip(),
                 "daftar_petugas": daftar_petugas
             })
         return list(reversed(riwayat))
-    except Exception as e:
+    except Exception:
         return []
 
 try:
@@ -199,13 +373,32 @@ except Exception as e:
 
 list_perusahaan = sorted(list(perusahaan_data.keys())) if perusahaan_data else []
 list_pegawai = sorted(list(pegawai_data.keys())) if pegawai_data else []
+riwayat_list_global = load_riwayat_data()
+
+# Hitung Nomor Urut ST Berikutnya untuk Info Cepat
+existing_nums_global = [int(item["no_urut"]) for item in riwayat_list_global if str(item["no_urut"]).isdigit()]
+next_no_preview = max(existing_nums_global) + 1 if existing_nums_global else 1
 
 # ==========================================
-# FUNGSI HELPER: GENERATE WORD (.DOCX)
+# FUNGSI HELPER: GENERATE WORD (.DOCX) - 100% LOCKED & PRESISI
 # ==========================================
+EMBEDDED_TEMPLATE_B85 = '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;^c8;sa*gl61-q2m(^%iG$G=wU{W3%F2l)KCm}k^G<#iSvtXjC*Guuax&3}IUS(%77`*Izey#Sd4K$=gb@!eZ6Q29h+jBK7du4)h!|)YSV(GHLxZnpwMc~+CPe>Ta^Wj|R4`MH7`>c`JLsm`Ggn>G~int2XaC@l-_lp+G(VwLhv}Rv6QeP3DqXHm=Zg#)V!5Y&fi}NyomD%;3iANsI;xHw<j<clq5piT?5_q*1#rlUC--bh@cWP@(L!)2tVoUG8lcSEEckJUtO)p2F<2l&gC0HTmcRFiez_BAD=!}2vc|nEvd8w)EK8^$7Lo<NRA@Wco#_u!51N8S{>H}7c{WBEnHvE#n%Ds{W50wPtFI?Zs7-b=imkIO7nBcFIq6}n9Bx-Mhxr~uawT^gPmaCotB&vz3a$eN`z_(xw;Pu)_N(OR{JbvXk9HN9Y-2V8knt_r#_9hOkH&!dlbwMEig*_VphwgYvgmF0q{BXyM94(ne0nKMGvlcU`8Q=$Ao|W@}!o+r-A|bZ`j>q``YIuP=rXA`;6T8?%7yO~G-rw$W%&DU~9j}$Q@-b%hU<4TGPag6VfRDO#b2k7DEE^VmXyu28Gq_a>ZWw%(q>i7o)BYQ|oODq5yzahG2vW+}5Fwq-qi<e^dD;eV<M#`y?od5QCs{Ho_P+fZxZ$Dyyr($-?%J?kUbnr){b*DX*esYei;0s_Osl+^w}pNa-=pWpc!@ob46aVi(e4nnUlCcxsYpYD<uZ*S4ndh)CfgL08>6w**=~Qkfcxl@wttZ9NXtX-E_&l2E_s{3B8QV^KT+@)%ykr23(vqtb%WxETV+V@1&~ue-Ojhc<-Y&Q|0+&ZHb>dLH+J4(4KaY9Jf|6eAMG%#qkq!qr~Kbq6eI99YyTneQot5j33<=Qkje6#WC=DERgv^m9Z(WILen{$x%4~PbC10LnZUWXJDH~N4cGXnz_zfzP#lBu>VkJS{HK<)SI<lhtL{BF*nR_8_D;7&dBz2mq`Y37l6syVq%k4`><2{U4F?+)CqP289S{)iW7s&Z(dBy}s(`QfS1hAgfTu|1ckLBG2ktxgfvksCk2#+OkIK=eTN!UB-KcK%UXvE5sq#BNE%v~{R=^utQ;#4CvRzb-QBll_sAa9pd&GO%bNxAZ*|c(!sOp&4i>`WZmbS{&@C{|FNFvfimF#tk;KF22p<SqlPK?pJFbEf<R^l^Ci9DVAA+8;|4GEC$8Lr*lfbUFDlho+09o7MXk#WEqm(LTbp?V2hl5hg!EiOccUQpmi!s|&1FVu|{VdWhHXOw+DoDhm4`{;OFrR`Gk{_DD4f~%~}VK$X<D`(-$l5E1)Xd~a3R)lM0Z49tEvyPJNW@k3=Xi+iQCA<M^v{Ew&CJ8g$Sc^vSNRJwejOfEGJEv>IbGBx%2vIlVk%MZAuP?Og`8)Fz8Z&PMdxjLt%Ie&l)xQ8JD-A`mNZl)mOB)kxg<g2Wvub<{lfY+>*+BD|1;2LB)DQu4ENV}oz$SmIeb(BM-XPmMLfrYFIuH`JAiSxck~Lv`>;LpAmO~}<bxYISstgjkz7@vLOyZfY&}ks563o$r#2ur9dVCf$VD)0djA(uJ1ugmUqj?K37FR=(iT`@wp9&QnXx@NNNU)GA?uF8OlFBbCwAdaA2v?@P`fV;KN1^HlnGH)3!T+5o>eGx_Aw!vvHnJt3{JwDnmt&?UTZAfsK=llTU}2^~`HWcfXi^nYYsblmGd037AAE5_erpe4Zc`Fj?FICIn!LGAvIF=HtZuF^X&e6(sgW?+>I((YO)cSUPv9GJG8C!YQ6U*m3>&jZ@oxn)>@*=zLrwc)SF=wFu})3W_fj2<Qh;LtTrbyVh8dJN)Di2FcpP3fZi)&!Ow+2*cy(5m0jYyGf_cL1B=V#)VnZB;AkZSa7e0?ShROna<4+k2+t&oPD1{d~Pl7R9^eE*fxk3zD>C<v40jGS1TP<BwY|2IK-!|5G;6n2funp=Kqq6``06nk6@jkH)(j9|u-7bA8FYigPAj#Yv$9rOBuy%)|h_rj$nlGGyAM6`__APr!;}ZiE;TT0&Q)qkP1@lDT=V=~y8gyWMtaA;F8t;BWm-%9!I}|eTal{9xw_y`IL+OKhEi}J3lEZ8iu1;WVWh#IG_3XZUDxp&&xQs*qhA_&`h$@hUf&i?ydr{1VX4EH<3rKAM@@}8q$glw^?|DzaX2Cyw!M$0U970-9+Vu1uz56u$e`+35%e;%Li7@Vj>o`J0QWg7ac|A<*+Us+e_2y}u?MxGhG_D&dAG!Z>5SO(@K|F3E?dspFk+Ra*OZttS%w0V9hy%DUfxPmBqD16)i(122W@BX*Gwo5IPNZ%Lo`z;W#&Q&!!_4^Q^gY)Y1~f-{(Q8?Z8!6sT699U0i5nEHgzCc6+Gn6CAm@n_=p<zGpsFOgyYY8ERFUMq=7Q`|B1F*>Cnv*#DyjXPP6;cPNuNv_!o@{&HgtX4C`}^~Pu@hPQOI$8%_pT#00&Xo1r!c1um|B_BsNqc!AndM>!Z16CC@ou2`)~?TOCw!3wAC0>!yKIEbe*B#md3|RkHHplNlPlQBB7)n5%TS${Bt>EdU>1cA^PXs0Bz^l|AWz$N@@83kn4Z4#N3=ppVUOGE>^#Eyy=k(y$+DMY93}jQWY;FL;g{<8ImSSL;4i_t@A&JfU_~cZ~A!f(=#gc?obQ%wkVAG|WVK&TZT#IN9M2PtDmdY!Mfcg|-{?*nlpc(VU_PcO0cri^@Arz}lLw_a>>+`TJ53;-6jysI$7Y4UN|%rBw@pTcIr#CVSBB$SqH)mE$pqd{^1;7lsG^p8_@s);#IB-R%s<1b^U>j15gS%xTQjn@l$IS5e+JDih^kQ6KZvLx}eB7EP43I8#fNU1q7!*E_6hB@QDf8bp`lGq=VMWO&*)Xjgf375>?^5Zjbd!+g5FL9o8e?TyK2T1yy^C-q0*H6a{UWb|1sV46qbpeMB>^K#VbQ&8%3I9GM%g3p6B6?M=TskvXW_Fq#tDkJz+E#e}Joq?^s^r_<zb`<|fn#8y;H14U)rYg+)EYB^S_N{O0i<7%4jP{K2;2UjAStc{kjV3j`HmA^?knUl^F)*ye=$V>U+1<qUre+YXp9bhJ$)ZTTYXf|$?2CepxzJ>nE@eb>>j#>Y%lNI3maC=;@x1sfU&3%4ZCW&Bkb`pocxMk@*jLrm?NYy(D&lAy-f@Wa2u`naK^zF=ZPJR?9bT}F_a_w6A1!W0*wJ324yV*NLS3!<m&+r#hdeZ^OW~5i`9HnxTl<KOYU7zrPd3vQ0$$5$_bvpEVV?jl{EE9M9`^?^PRv5DJ$%ZJuCmY>r-!bCXI=cu*l&tU{sy_4{37Pa#>h-sAw1{wc3IC##b|{K`})%ue_)yK_a~<ln?1Qm@`K80judkCO2L-U$FwJnmR6ZnXxb6H46i@!gH!7+?e;Xo0-Q-<YXK!PIr0@x9~+?x=da-d4;zZYBdL>)8E57rAkB<adb3w_dSyoHq<6?QRVP!Rf%uajHf<%NP~f;p5kU|-#*I2owy3KFt|HlV*dcC0+FGv|Qg+u8A`1A&Z!vp2N@?YC=_<C6ANG}kFBn5rck*WhoXJqw0&ridaB!4>@LlpG0tDu*%G~YZ+ky$A9+QMinpjU}O}9ab@+zE3GosJD%@2keCP9I7_>`V)$_!ZqD~!Z=C?HYS;SYGqppn-a!%VFRa`!T_!;{Cw{lGA-9ZN!~vNKk*!HcY{+ah4`>{ksm&q5O$37{$3)92u!zNH)Vo%J_37%Vf-=S}y12PERz8Y1?=3F-@dqp#QsKMWc*C0IGoC{aIkmolmVs~`@XSAWb-^($6ER+8j=_jzZrrnJ0q&A8hBOM)-t<BFUN%C^E^FV^NLnw^G^(^I>*R;r95RB&J8Aa$Mb9KB9lNBm)Suk*m=Z(!K#gt}T|l;hrILhSw25nf^@cEpkgvl4%Dz|s4YMB!_W5#AEeuwJLl8$GuCp$F+lX4;A~({_Xid#b;#{JNZ-_XoHRmD=2QUT+I6*CqTn;)5(c3j1bnC!??UqC(cLwtql?*zIF6J*<Rj#02ga{W3d)V&k_1VWRSm%?GANL4kIQye^SDCTy6mNwgFS>4)1KnA<B27Rq5d#vy9~&g@-hnuIRB4cQ^v06|k_K6-h?b6qxi)m8#dA&*?zgGKsq2v1Ub0O5FSr<VExeHa}bOSU@D_pQGXCq)Daf8i!8R-AyJ(rLvO(U4wLW9(Q5300PN%uujSTu_}XJ=zvn$iDT=M2QIxYHeCMWNhznKM{=sEar1ktkG~9Ek`N%D!nf{#GFsKuubbdVIS}>klALffiII=9(uAL`9_Tclv*SwsUCCnAHu2!0qh&`fZpneX^|Fbh?8}LckH=gv<v+L70h_tjS<6}J?)z4{__gp5jFP9Ks>ET&+63+5ILKjF(vt-Ryu$B=Z(E@uyEG`+bd9*hEJot9a;_c251#U&5=TF58r75Zf>jgpqM#Cp4(tD9Vlkh8Xvc!$H5NXHs|S4{8lb_(aP<3gmo2=0y1pisUrqx;S4=X#f~ZDW|7UhMYdlXYUSb1gnC@X$}av3U%V1gF?t|hYC@Ka*n6UZ{^N^f_S^vfV1`%uOfLdtZ8ns?Y}@Wrzw)GPYYK}*kc1e_`x}C$0N3mKR{7XPKKz4lKUJEv?v>+4<ZRVT#6n@xAErx%Qo1E!0d;ZW@!GTf&t!{RLy!8KS>peEf4iD3f3)Y0TN(<mAulwktJ2r^&$IdX4BW?sA0AhMeKYismOu#9QUONiArKlwEE+~U0H769R`sr`J8($CWCv2~mK!7IXh+okA@}oUpG)KM7vv^}b!wMp@fISzuN}7T+8@{c{;=c8k}{wR32=zsRH#ERY8PrUqFyMlvU_^4(s!UV_Q(b{$df2#i(DNQQh4+yN%>ik{?zo$mssHgw<fcD7Rr2;5z|Fhq4fW%h7Wc|UrI8q@N`lDVXDO%Bd@eSE*){4p_`kFT@#M4t%Oa$6CP<(sRoogwaw8UaCjrjP7!Pt5`UNxAq%R3U~A-Nrv}Nzw5qX}H#5}GDeLVPdNXQA@m=f=CjLQQ9}Itn;cNAA0hy|Rog$py+v?3Z)9VbOREJ1p#TFcD?z8ARuhmXmUoD3pGCb#U6T$;}4x58l&K?}P(H*k``x9%E)5hpSUvTc<1+CU^@Tb}o6=e*{s$Du5k@DL2dSC5@22J@dEz@skS^5kF1ktie7{YV+jPVhYSLRohp^O(y%1T=7qQBY|W(LX6-5jjI|Msl9vI>~mDUo<$e9@At*Tq&-9WnY6?_!;D2COsyzsadFnPMU*sU5ox@n2M_#`6BUPsXwL@-!jhqKOr#T6?Tdvq^sl+QzYtsa#d+x05Se)+btyR5z##uoEG>3A45u<CDA?I0(!bN)=SP;ZHd_86+yzPuLEZb1eU^simhn9Q*85Ik~tC0a-jA2}D0ah0U#!wUoP;Hw*ocGSfS9M*=YJv;F8OlS~}D{$BH&l0kNZcZ;?Y`_-Dy8^lOP8CMD<o5m?qU#Ogs{oriB;R&6^G0^wt>0dYcfu+`DbIaLIjaMZouKywA%DfOi^Z#w~05Ml3j)0GXgsbnskw6NAziuJ;129I8K87wkY^%r`h>N@DZ11m^UuOV*&!x7CJ#-Obh9hUA4F<ktR<9wD$1fXnZz~NML`RBs11V4HH6D(f)N{G3d(|PxaRHd9smKY{_99lGk>=-H<>!`wgcsp*(I954a9Z@rs=pOZlYE53*^2?ro9ibiig|^j?Z|lDY|Z?_&z7QB@N?_1AM}iS%lW?HcgJqppHLsKw`jDCrl92bf0Iwm>;a2H2Y^?-1rlpcH(g9vtHJSRYl{BxV5fYG_t2rH5I<+g3!L+ui>&3D^sqNOKaNk}m{|m&t}!XOxKf$auov@u6I{0(TG~w6$%+W+stQzsKILCbu;!qoRTofDVIh(~4*{t=+QC8`^KL<CRFa%?$Z35ed)ZSB#U7=CM?`=C-nwFtK9V>;>k?JvF@hBt#PHMaZdc~0R0Iv@b>OBjEFkW0kPVsc%@Uxa1NwepNV?bs{lmiTx=piIsDgudG`)G6ery<3C4BO*{RQ50H{|zQJJ!_UxuiSq-E#r>WTr`+ISFuZm`X`VtwuACjTLm0LZ@On(I0U2Tg&3=#^Q(iID@|v^dw`gN1z8a|Mn|QdPmflGcvEvwRsFsgJFJPE?ltHR&<gAS1<+iugFe7!Z}O0DCk8_ln@ngPbG_>Wb_+zlnCooKG8VAm_0wX?J|4dO$HX=s0=HJec1O>Ip?W)cD++6)HTX7jUdU=^|L(5$H8?ECvXjas^Oz}=Qw2rsCBBdqg^bwnbNiXUw~)e=U#FMIOT?R*-9)Fe<qhF>Zb7?<|f3q{LI8X!6l`dn2{7#gkq7Ggmgz?_<OshRQO*e-F8CGEZTRExPvvqLh~3Sx=7x59)L>^6bBRx#yHu=tGL|B!_O|l%YeplK5dJLj&H8njP(uV$q)$l-10=Wnvph#?OtLPZ|8@8i<kA~ay|426ZuNBK%a0nAB1D)C!%JgmgUQvcjeZm5bG}8tlZyp-}Jz*J+@fxpE9VGxUW41xgVNukfFZ)xiKW+g<5#D$ezI^1;sv(BSzUaGiOc`iKOXm(c5a^{yA?nam}M`izBUG57mRMqzm{6*d$~NW)&L@{F9^gJ^t9q*dt9eU3zq9*Af;*F|t_n0ehHe?`jS{EhPaQ-3eJ%X7iKZ9X<f3z?)LBH-~)>BRjb5ou}N!#pq2?`~%(S7Rs^e@Z3#q^HtfJ(^J3>BBiT{8`*ClLr3J})OcQ+Fj)7SZBLN3tko#3E~bKOpc2R{Y;nKd#}zoaDx?lqGJ8t8!&Xe<&-#B)4j0XhGdz^rj($!Y<~K@cTpdI4>_$jyy~bsOlSan-jd<WyiqPlOZB;-WoNw}3!r1PIavDDsWZ@Zib=4>`pUZSs@bAg4S#pLfbC_jMjKNzSc_@ox`MLXbK~$eOC|gAjjL%(xJ^@8Qj*2Dp=_}vkWcGlK{sV|jVcIM<OyN2APX9Tn2tS1VV%DD-BQ}xo+o%~FLgLe}F)B2n@TU&(94ci-g@wsD2W7KCmMT`lEE$kIj%?Xr#)UfK?`pWC&oNYcB=E*QDH`shbay+;qbP_W;FOiM&v@N2Yk-(wUToGZpT4yfI4?D`X_ms8^Wbfo?oPj3*#w_>f)oVL(^`m%-X6Q@bpvkqY0w3)ZUuUhmc?3gGv|s6gUyLFMyic^mRT=#gjFgk2px6^18{N}WMV6C?vIxVkN7#3w!95s$ed>w?%wu<@3$SjpA>P#wU#$jK%8L7Zd}^l27a%G;5@n_Ygi=qKf+lq2&q_L2KvMKh3;wM()!x*qYg<i4;PsU6-xk2@?~k`Zv3rhagZ}?b(1en!hcebB);RWsxDF#g=i(c-R#)(+jmK@j`C*?O7U&egol6<zbcmb<22KVqW&XQVn9Q~%qu4SE7M91_F9@yXWp2Vu_(+d{Hd@CRxxyF4Hr~SJGmz);QdDT`{o+w=a*vd67^smPws7xKR!wmzkGB(2(FV8h@+HEL12DGbVeO~7Sg7ND$Lzz1A5)wdOt>okMqueGJhfYSbf<3(dy-q*l1RdG<kwfl?t`t=37Sd4v7O0JW%z0maD1|Pnyk;UbaH8axXo-Asu+EirTl>6V%}9e?>05Y$_{>pE@!T5Mvq4uYTH`tBd0>yamIDygwWB@ogytc|7j#0ZG?sDBFc_<~|`Hm;FcO(N)e(l-lJs#9{;w9EWLF-vK@?xghIE&RopXdxnZo){uHsq2ds`y7@pXIta897Hw;f*=%qGSQJTVj4`=Nd8t`glri=Q(611wib}`_(@LMO2Q-fX*fY4pnAm*zgpz6aS|0SuecvE-JMt8ppoxcgPhRvv&#H)VLs;i;CVH09aV%|WPopI@QE^gmpO6_^^kwKQ4z`<mYsHL}9UwKk#Jo+i0CB)W6_g&>N@ub#5O<9!NM~4ZRsHN2b3Xa;0H{yp-%tx6Pr~ZZEkG(fvV~wIAeawBuf{-399FY2f(RBp!ioXF7{zP<m(UvX?n?4#3p2o_q0M3tt<knbr^%$>_sn#YE0Q*So~oUv8pq)3{*Cw8i=8?+Lzl`}_h!IZVAfN1N`?~Yk$BRK_r98X1?HxPa>`C2aI=y2G^5)2up1EQ9QVQjeIl|JpqgBIu-)o%jN2nzhDBdub=n}zRr0}70%NpjZumgozEDNueD?(2k_Vrxr!HLeJ2!nc)Cb3bR#XK_PCVnnzG(yLwW2lB-w0<))~trqB*Th!8L~DTR5);K0VJ}abKXm$5p`A7-SQlDv(DALXmj4IhncrsplWqB1u!PQ$7xZ-lMGrO05^Gc#grm9`fz48UD!RT!Q+#P)?jh9tGsXX_EmyyeGnchC~e=SsPx~@7N4aN`ws*pxKIVuG9N!jw)IBu?s{etDvE<^awE#*P0H(h48A|%Gr}@GaU7%pTWD7rd&gR{pc8g)wS>Eg511QxLLTJ~Y%)UvDb;+!$*Z+bs$Ks5Fn09F<<{9h9ieBbfF0{yTPJmjAQXkIly9*XjYnU6v_S(J{wpO?%f2@chKv44`YXhU+$#T;Ra@|m`2b~VgsWJzM-d)hE%|%gUO^FMopEpW-{@P3CXYuqjbkt=MvdNI0D}^so$rD(y+4BpM;xS*Mx;cPDuVV#Dre7nXOtY!Rake6E68ptNLTM$^IdDYOudhabxEqVFe@`CDGSzVY;{$bysQ|ckR{WHqM-&pyn@_R=@v##Rs!YQf3IylsQi@GE7OPA!0C;Dyb(ipBUaw>6!MHLUgp@<U%4fHmf7sWqJjpXZU^Z`U)kn1axzP{_}Ql?d^h5Vz}P?-z<EGm85Pq@u#+T+a3DD?@p#O$PWSy2uu1osM?Uc-kdEkPK-c&SLao@fV$`#Wi&k{?4{{zrr`jq73{mbJbW_aUy#&cyfZ}PHP~m>W2tI+5Hc32VOFMFn9wjf(iwa<9G8tDe&xrV+JVv0ek!!s!Rpqt+l}-FJC(@j4^C+!Im?+Jst{8I^p!`T!@@YbY0GO5i%#e7j9pEr<SMYhwVXqYoGZWwNnDI-~4fB3$2X3&O95l`u0Ahk7Z~@J(d)8HQsbMoWB<T^(+23KZv6wTOKYOL>@HsX9fF*^rG{F6%u{?T`14qA*!qy7s%zLMp!UR~dQfONwu~M_7GeU_cL3A^d!VU<HTG(Y(#cIHlti>hU)^=Pwsl8BLG$IuMAXk<O9#EtxjK4o(yH#a5M3gDQyf1wU_~v5R&qmkKdvTz(rT^<QkTV_OF~HR94e9OZ8{C`|@EYxzC4hq1xZMV-QE5yVZU(y|tcetsLg@qtW?!Oa0zNUuREUmQ<2(YjQed>Y5d!ENH;z%q`i9_)Z0%@He9pZ~i9K;h2_3W+C$?9gs896h#%0c7QRJ&deOT5(FN;(|H0F{~v0sc~bECC_JEy7c2!>7!?gu$D)=ey{nC#96e5GTSVK9(x;CP6pyeHUg0|cbNf`JjezxpL%zshQzs-yU&Q(P({)KYhn!V>2jkBe>AS|@b5^U-p>s+t33awhi=;W>#n!?V}6o_2-o#!^VrjD4Jd?ipTJVil6L)gnQK_vKXYyS}@prfB3yVuH1^!F8ToE2Rea4|o;9`aC7P-NXNx-hA~mU_n7DpE4GPshYk?!drI+eW8F>YPIe43Uf(PnbN*<;q>-UTwlxevP>ZuSTQ!nBwv2-h-Qpb5s+mZ?4f2zMU(DH8QG$z>i-kEs_iJYJ>0Kms5Sb#`L;m&KI{8BIylHKDSEtR*OV|Z@>wGk&OWPbQOTUQd)@1pIz`+~9p-O{eT}5*K094mZ&n>)<latJS0NqzU{P(4K^<GXa5p_`q*GBw%4!>Q)n^eiZ%<#7nDQG?W2XT4!6_D@>FnQxa;0kl0L$wk4r7C=lTF57_-}BZy+-GY1eDfZ5ZtstlO_vX{mOl0`OpNzi`hag+yzbnh*sY=Glv6+Qar_aWg@QyXrrmp-~t*@S6yc$!rJ-~5-GR8yZmPI;!?&Db}^M<#7d(b<HPr%^UnLK=;-b};`?O>gcU^ZDeyFk-hw{TtjlH=yBZ@;sDpW<G+k+OK{IRrMk|!S`K%ZR&?S;$gsq_QnjE!*q^)gzBzdah#L?hscZI|+zZ?{x4%#7ZrWIVT&g(a;rnE6P`p?Mv*tSzJx-h25iMG?Z<)j?%zTvQGW>l)$4aq#XTlVKirpd)MGSBko9S&t>?%gb?_^{nX0)%0efEjxZvEjUn<Bab@xhG0fJh*-xHXtOBjS^<$@JE6Er0*+vpOx}qhbBjZET~GnTqIpEI9)qj$O&li<@?r<KVZu27yVE*Ohg|Fp#)gVw81OS*yk!w8g5Dlndl~)R4y^APpa@ztzMmiq=IcX?VIEx;ayoAn*D%d((%vWYNJOr)}k^$#$wg?P^d@|x5t#al`2!!Y5>V{EGn0{G3mPu-FU+)p6gRqyK65SjunQf@MeMnX2*(_3TN$%zF{qe_AHAVQb@*YX{^MKCFm`6zoG?@nNdlcbT0M9uM&0pB0E{t$1?yS)tE##OXKG_MEq+a%zO${>x!`3bfsK479KUz*O7t}D_aJ&xosCLGz_1L=HRM$*bPMnFA<I&2r`i*dU^Re*su?w=c|h?H=1$Qz3My)d|=nuu%Pb(#(=CJD}6xHhfZa$Q#?AR>s)8V;2qyHWq%1k-3mY0YrMLBfrt*opf&*GjWFNl5m57;IhMiJ@Y2-azM<8!!&VeaaRKa>D>xAKwPtra{=YOcwK1-;2fnfr$?JxRz)TQL>bDeSw@fXWSp;uVPhZwzFF~PBFRJwwsq<Mp$Q#32ce$%Xe?l>z|H6ajxBEl%D+-cu8&yutv+4vHx`@DCk@QPweu1OiRz{dN^68f`)lwwq*e*QnOA$fTp=k~x!sZwV2t2=hUB*t6$}Bpq_zFJP5CPY*DdYOQ$!{Jn{eJs0*080VsiId@<4tkR8SAO%)Q@d+PnePiRx7(DGMU7dE23vXX}y>FxPdm$662SW8XoyrRKMQq7sy>*tXA%H8I^_DtT(<g23StJ|G7-)Ng={;McDuYW)=Dmc=?rv<5g71=NFvC?oTLU0&U)HTIjoj!jZ{ZIC*Ua=06)p++AzFD+GJEDj6nahGq>y$>g24pS2E(6MB-G#pJ<1o4hwBp9f%+*M)K^W6yBt`cTKOM0-@&Q^n3qKJpdo2g~KPeAz0_qkDxonjvD^C<t@5Cxu(FBc7B+k1I{-N!FFL6;uJ=;pIlUoqBbo!nT(CGi|eFAGrZT<>XK}K!f+{G|fFnD~iYLt{<;W<-1MY5tz&A?RQrM)+`jr*668hMj#}Lc0HCum`uxIAK@7GD$m_)1h!4PkEwAm?SKKC14{Db1Ui-uWpwV<U8amLYO!1e0nnf3MdFiLoMZWX>^bfFvrXHGni(pih?*uw_ML9^Z661vxUvy}>`|ibwY`d{BQK(7CKMkCh6)W;nW{L>!+zcB4acL?i<P7j#35d@Q7YT=5_$b|bkBF=b{STUiNJ8%JPC%-6Zj?+Q~$ogjPHQ=2I3SpH&|djJ%wUi6r<^7KcO3zH6>myveS88rz0FT3o&kGX@CooibNXCk(9YFny)N-$?h;%s|z2H6M}|E-CO2Hv82P)AFt>7;j1i6g(J<%PfBUPuJ8+$pzm_5Pnc(1D_f{9VAF44zGhM5!*>cgEt$2by=AYC_s#fu6blpe+Xn28^%)Cq{Ln^ncB02#?W{HsY+u!d@aljmG)9G0OgW^nno0L^F%woMOo86WgVFL_70lN({yl0Md?2SQ@Tk>qt1xQNL376)y_Dran;pjaq2*F25oQ8$|DZr;UVF~(Z#4vOhEeK(C}bn~MCv8(F*s~@q;CO`9lX5o&#i4OG-iIg+~VC~4s@B(A0MPaI0J#1;C>BhzvvqLb=8_>TC^Ym7?#1=6r-xmF`Kgtp(7ZA&2-_nP}JlNGW?z|0lgZYvf_f<wo5&o_*&Jae*%MdvySEFPpz*7!~q7Z%~GUmLd!p@T++PDyfab!%JRtkUhdyr%9N<yL3DucciAM7w!4AV1|(u_?_s@tc-mmFroU|118YgclnLkZfeWqZqiDY?zd15`1zSl!m?C{Qrd6_8gH8{wn$9jgp2sHf^(XhIa5`l{awCKFuj{%Q@RyDDuqZ1_*>{vdgb&v5z{6ZJVN;E<PboU8EV&DlxCyD!o1RnYl{&6_A6HqbS!$3JBG<Wo3Fhxer%zo0e4z$W72Pv;y@!<~TQUZ8$k>hG++gFnG$YJEs3!k8$5b1?YjYvdZ<;jAR0I>*W0-C$g@_pO8kU}|xpYBk`#9zEAeJ)*SvCl~oOe|u_4j1ipF|!%FL;H~i*VLTggW`7DckE>lFzV~7K!`dzgp@fkMh?oq{UH^VBh(tphsj8J)WIs&T{-6><U%qe2wc?mX0S5(rwuNOVR#Z6peo7!$JdfSdzGgbxFcbKW;AAS_~=8#2|^Xv(dp^>@!ax%X)QCy~+Trir-VeQ~Jygy95yG>+px)Ti`6w?a;9gN@biH508RQP))j|Obgk66_*q|JSjJLd>}3YZDep)To~!H9ohXt0=)|x9fgwGyW4Ebncr13vjRWAwdCEfDkl<J7xftw)Jl?#cQ$L5u{ADDW|a3cM9Cu^)+>}paM9bW6nq}FphRf37Z)KtMM^PMKeRox2=O&DCjX^~sxjDMyT<aJKd(L5Gu8_;d)>2*LIg(G+3GCOV{irAH)Ca(VMj}$CjHky0i4g46^uUx0KV9oExvHBdE($4J&~J!n5{Jb!(B8C=C@Fv-@qhH956+zil<51f@{Zx<mJ`ey+`yYzQpZf+9DG?E9AJd)dr(PDbsbM>S0m1y#H!CY)x>Su%FogE^L<8vr#k(<>^PJB}YhcgM4|&mA`NbTu9>|u$NsoR#R(-f3%bH>B>WyD3SwaDN{aOBG8WSX^4sW6}lJAmyTLQ@%xoItA$-bWEd<Ve1^IR5(8>!Lf6egQ(Xz%ZP4-yY=<z_G>F{E1fBC_2xzXrz*RU?!oGZnryK@jBkj?H=${$e;*C`(W$MR?9FHMh{rAOtYv4NJtKq2zffTIGn4;9&y^Jrg&eT8vYvfvwvB~7}m{m?cUi2(HOt>8!bu~n#?f6zbm5lo{L79wse-9N+Dj;?sV0*(k+k6&gQ)p-AZ6m1BjqjNVBCpT|jTTb?k`JmdKy-TkBUU-5wIBi1=ko=eda2cczD%x7V{Z85iBw#vsW^Cq4p%T6q+M#s(BCt|47p{WnP414KVS6+*bf}{2J-t<_&FY}{+w!mf!fe%od!plMERV?Tr^W+gr<k0s{LUW=C`2%Nc~1ptEHfj6mlwJL{vNuqx?7_=<z1-lV;ssSDvkh>zw2V8@b#@IoyM}yo*F=4LPL!K!-uTBt{<(Aed^GU8wXWimUy75g?IAhF6mF;WbC3So}hx2qa1Ry1M30GQjM?>bHA@0&d7-a<;c*m24DP<?3KB($-!GlYO^<FyQv!aF;0#zPJK~awCY(eD}NowyckyJoeZuBf56mI(l?g2-S64tBMSq@G*b-P;RlNSX{LUUX#)6#^2ISR{dz0GarjrvBsi<Dz$&KJAw+zaSX&8RnMVdHXh2j4R;_7q~JKhHhkelIP@QIBZF$2#hHVgMcPTt*<C?mCCkIPREcnTL;<Pd&&i4zN&tk~-Y3*J9eWF|lI(==-YG5haWt<)V+tJO<Yn_vMb}KwC|L#pPstx)+1v9tkUY70+Qsa1u;Goe!S2JY?ZxM~p*c!V$-TAC^w^&HaFkU-wGQ=TI0Z9^owpxAhiBu)viP=xQLEl((bqlL==4$B*0Sz&u1~ANsmq9<*Wod^$lVCYQ<eGljN5h6Pe@FOq+)e*w$DswxSYuO(Znugx_C!_{MxE+JbNvJ$0>$!n>ZWO3p0M49ycSR%%orh1e%Hk|Kf}+1bK1rs{DGJwI|&?mCU}292{+fo@1!)a@5Y-!orW76UY5?qpJ85SYlB&MGM9Kt&@l7A{g2ZG2pk8i`IQW=#M8&I<!s549#Kw82fT?i)`P-rHq7j8VBtT$(MiHW3y}~Ngm#a?xlf!A2b><f9M4lC2r6Zu$o4IWKt%R%#4Nd+!nCA3^rSlgm%a_t5eEWJJaA>L35m~paaL(TR%&`(WS&qRy3%#0+O&)+Z0ybBDX{FUD8ylOb2cJr@U^%y!*KZ3qsEwI4QyAQH5;OktGEt^iHbV6G~HJwL{9B5Qn)?nY)_8zXqV`HIx)15%3rhr*2q9v4D&Z!-#-`R6`JKn}kWX2U7JYrMH+?dQoQcR5W^77MJtBS~w}+AW&BsQGk`pfcA!3A3zv|zmf5SJcGBbh-3>SB=UYGm0g8FBY@B?nSa)|dDDg2fC#!v)?=6nFU=@IDxBXFH4D)*`fORT&R-!}%~1(v%1HJ|uN(}6R92U!D)78)lQ{?okyDQuIwOU#``#li3odM3Y{{ps0IQ3}FFXO<UjWU@hLId$I6tHzjIkybp-A9CFuzW#{_!Y8%nidFMJ)5kbqb4pDKEK@L=u{bC^ofM8oZq7Q<3YCj=1B_?lcRb{9$VyBPDDKtf5>nEZ|<wK*1;4+;L*QnA~j3hC!1FpJ5&ARuGa>x$fF(MBu39nNqZuAkOK?Y4wvTbzg-p$?XK3uDX0`A03RN#Qq4t*ThYYONi~4xg{G3au|nie&X<Rl9c$O{X^nOI=RlEaE-hph>GPo*)2`I$EKiSw+~_CHtJqV!zF#{YuuBbcT0?-?3mZ~v<Egr$!%P8krT(QfYP>?czP4=opAw@E4d>zeYQ6hA4`?XH#usJ7kj+KVQ@H7yDWXu_D#s~h680=u}tQDt9VXS`CGvnLyyF-Tm-J)hA>HIMUsrf8SYM}UP86SG-qC+pRF;G^7g_vVt#X`j(Il!A<P|{g?jwVtT4_3BHTr3joSy?2n!!mYxK`M4b6g1s&x)0V17o1Vq_$WoP9P0>^v}q^Cti%2izG^lXW{8N)t?>D{E}nL{R|iMKU)<Tk`6CY<9H$mLmkjaWh1_N#+dQLf_J9@uVc-7VpnGD<}cl57pcBm@C@>c}382-lh0BD1ScfksA@DHSqUx0XwesgSt-_mqs&PAQ+ZS<B9<RjTLA|{{kws#V%df9TBp!t=_-zJ=s9oxz{t8p}Rod@>0%?NBL&S`OdX^Kl*f>K_v+Jin?xPBLKtcH=1X%T)p-6z7rVyvz}K-AZMiEjC%s0$~=l`f&!FoH5m0MK8@OOwXUTXle3cT&y?Obr`#&z88GCPqP5qHFF^(@LGf#eyfi(XCSioI%p@&7)y%t2$16BN<=gxNTiKqfM_+3Rwv|Qaof`Gi)`0CF&%CBA$LiN47blW0>9BLef)POGo`R`gG1PN>32sD{`7!zq7EvGQA&4Dg$zX#``<$by$l;7-^V=>K)ga_(#(L8#0o*q9X~|oa+XCUPni5h@5GQ%~yWG=TH(1=xg@xvkHgHD1K8eIIz;8|mH!LAU(%2bq1D7zlK1f6#Sdhu7V-Ufc^^J$Lq7s(*)U#YZW1)dQ0u}svKu1cC2mxovkgo@86!l}Kl?Qn<e-G>AD}YPCEM^od2e{y}{v^%xSH6D28io-ZAx>xa?Hbsw5d-Cq$*r#f>>GY|=+7s@X!ED-<4|DfW<4SI>E(}wBSu7K3@gaGUth@e(Rsjn`iLDcH<e0l%<%l{w@f@aJyOy8R`m2W6RrvfthHY0Jl_~|-?k5?vu$bB^VB%Dj$SYh$-*7t%W2Ajz8J{`kNz0+L=j{MZV0|h4Bz-sSU`CgO1=wkRS!)0e-ei3xq+RAHQMs&yO4S&mpYrr>r{U2aXZZs0rzrtr`YEp82zN@d;zJJhy5xd(t!E;9l?*+CQYV%te@<cO-EW|o3FXTQ~vuM!h%@i5N>Y9rS9&JmCAd}y_FXQvjHU}f>W%;)uA*CjR3y)VBxD122WYz>0l(<r@N3<QBE27P5sGzKW<IJNX%R=EwE~Li{VuCw&a(`6hn%U>1yMVRX#`+aiu`w;g{A<PRz$kh04Mu9#?;XqLK>(^Vw{>Pb`=$R&@QW^4riw5p*n6oD#VR*5qOG9y>VWYq|}h*e~svh^3ea@F*({i~O25n$6YI{JnGxEXLzdX)NlMrkL_!#BHLv!#B4gAD!@OeR*O@91rt;Ls`YMXk<78QhN!Bw3Y5yjALFPbHV{YMaZM*qMw^VvMIe!@!Vf_Jy}vBBQZW+M-W#{07)GYBE*D_EJH!E##o5%wQi86q*T5O8YU{;V7<WH8CN(jX5e|-8Tcgy`P$AmZ}?V#_0|0{e0F=uv0UT-XSa2GRwn2Yy5drBF>9w9!QmeLR?kihydrmn+H&DB?ss=}l;ay!=v!m#lWc;{-t-|^;Z}X*jYVyXPc-F1$s4)L@wjkik;lV%7(TJW=tRxmA-X{NE8YZoO$eG8r0>{0T9z8W{n_nUvZ_*b{Bi{6M<ca4s>8^hYD;eHRXV~+;X{}K9-2#xXF|&MAWPxMiF5l}|Nb8<Gv?-$kQaq@%(~yr$2X6c%I4ZZjQj>CH1GVDTK3gMpjG0-rf5y9XUq>HS1YouX_1FMi(@IsUZpxk=Be!E+Z<+LpCC0HeyoY?BVjtVB^i9wGi@rCbFog5b~*U_FY}p}RzP5U;XCmKW<s^Yn9+Qf&8vLyY|{(|^au<mWJ3x9-a&)(V|ygp9+VxYoZM%(#klL}5~Y%lDk%xg@5vnUp@#wn1p{wmToE51&?jX8y@C)j>pF(R>gJg!0>|iw@5@N?(mq@>HEWH^$>||fAhmId6G%md9)z0yB*v}dRo_3vm;c0LdN6SH%2HW*VR=po+ejIjUk>6&CSUsNg5gbC?&@{8YU-fR8WMHsz=bf`v~tSXMYg)R=)oDl_JmuAoNKH(#0xF<GJD?C4W~8wNsO{Y&4-jk$e$TEVo$U*Dq-qQASV4g0t~J(m>9sy+jp$lm&>%6sg=%2@AI;Xf0obOCuUC-A_5`-J3Q<sHlR5YZH?~o{l5=CdU<Tt34G%BEH5wNTV)evY~_DLf^R0<VM;wxu<`!iV2~FK=qdAyRomhem~G|nDTq~X0!9%oAma_K|0;wOj^<eg^`>sLO{&UsN}0c_a)>h)9&L*d#!WV6yG(9z{`7$z-6$(=^2^Bc;5k>pEpnX`-+<@joayE#dW-Kf&>LmQdfoC^xwgx7rMhx~gwAXyJd<U%1w;B2R&s1a!5$vv92#$j$t*2vMvNU}IElEM-(n~Zg?~ymeT?EjY>LK@MQhbBnvPkIqnmkQC1XiFs8I6po9*-b2Op=NewMz!>Wt5wCMXxnrhv-^!pYv%H<qC$1^krq01*jxu>2W=wKs7L3ybKopfCB$B)lQ$_*yO<fbEU&aL9*R@98z<fO|vdm4wNZj~=-ng6;ps4Pvf?Ow!2K28!rIAqKB7K`=8So*(um6GyV))_YMg6>`A{GCzAvDLhmBHG6l0H#&aq$Bho0K`KQ8!jZ#9t=Fgt?Ny-Klo<rN=R6Bqe;rirG;&{?cHHteDB#Bpn&)n#$o+q1{|%yg_7{qWo2S&KTUBOU?Q8IN^RwC-Bo8SpAF5Y`WLm4rQ6D1_SX(&GJFn?e>vWsWHA+w6Sw^ZOuN^?x!~pJ__hu%`D8kMy(j#Z$BcTabU~B)G7q{^Q?PgFCmki)6$B{K#_$b1FF>e!gv;@qpq3NX<Su*0DE(Ay}3^m9WL|4Jhe-qF*TDu{8<>-jTqFa)4oxIpIJIQnwuFbAQ){%$lDyue1?SJFG!Xgu>T|Q8mFqV!dauJJmEVyJAWLcy79({od*DJXHrdAAqPl~1-d5LO9e(g@R88jzw4E@PW@T3{{hY-e57f~uXNc*;i1Cx2%94-lMh^ec~&$*e0_N*cpniUS%t%;|pvlj4Mrpp~i0g+F#0TQceDn=Wex!ERG1H;kCL<XBB6sNkqVe{ds{genMYP!B+3@umAOL~&jxgID~QMD1u;Y(SyM2(X>DQr_;7Rr;Zvo_?7@DGrV69&^)nefd#>;b-372n*9PK4Q+0}_%TzY7~dP^r*}&)_irL$lVy6UbAOdfq3dfmuFwvp7z2P5PJ1lDOBCGHV;{%*PvA;jH~*f0PuRC}IU`+Uv$!LLk4(*802%z52q4PqlG>8;DorBRTFbR&#EcTt&~}4WfG{CBob68uXmKo_g*_*q`_X(BAyVq^Pc43|NAk!JPc-1%3wlSH2x-{IsB@!-k-*Y0-R^q8-UY%<QSPeWZ3c{(tZr4tC@>RUOs*PrfAIw(0P$wX`P?(vi%gNla(#U{M3JownRFRITvUU7!@8;`WfugY+`9*Mkwacy<*w?;ga`N-Ml&s3A=IpuNkWbebt9VjB&X!VvA%Bs^(pE;0>c)9V{6JX3mYNNUr#XjCk*qse7~@CpY7YE7=UXY;?!s#w!fmz$(w5g$upY<I}?8f#4y@|MKx6)(IlEfL<l&nS>!rdb8EoNQQmcli!v^BH*wt|_;x4h-B*!4b%^*i}A-QU9CeEGYPqnL*o-(Tlh8EBii_e0{BN#Oh?QA=SE7epX3%u==MGpdqUg&lQs+T>O=(LK45N0Z^JqJ=J;oAS50<zfQHPedN5zb0kjur>s2NV_u9eb39BHgw_tCk-niZBXjR>OH3^&A{T*4OzvU>cBX`?4mM^VW?z%Ub-Zr{E@jlHIQN*i{!??R_d}jB&~n7MhcLxV8s(-tE8P?E^wiq88G;6o&hP_Cxc^4QqW!98{uXu)kXQGOyhBw448=#Vu5T5QA(X>95m((QO~)!|q;-zLOJYiY$5`;3RDsxLLE^U&!A08Xbze@*H@}qNp<M=@!SkEhFXP2TO_hL&W{6sTUP%E_C96k&gjV7z^=(kA4wT0`wH$^Z7WqP;mA0Hi?thfLD-fn}+cxB>;9S{Pr^WIp9rHkd_1CJufY=ESn-AZ0xQZ-<1a@P>6d^V(T1k}np5o<e)Jlm;8QJ{5poBCUs-J)$AN>g*=bTYAvWOb|f_Ix)n4`D`Z1l+5_c}#5e{iMFUiCjqjM<*m9zM=M`S5GL-bFTuhKy;JH<PPL2`i@CAJh=9l~y?Mz1-pIaoo*f*_$%4m*-n=5oJ<m))3sMn)V$(BlQ+pY%V;Y1+6jctob92U~I#7TTdxHZx69|4>1`Mx?JS8z56;)wyqd}g7WbNOy9vuMZuQl(J=MrXkd)Qa(DWsjuIFL38O^~<eYeWG6+abRZ4GnJqHp7q@6917NU$y<SRI)-WeHqhz<d#e_UlJ3Fiq(m38^G#qSP{`-@upX!r~8XiwZ34iZ$aYXNi-hl|eQ*TrJB?XxED<h(kDDkpJH@o%!z^_k7$69n#~j*~3;Qs>Ti0}b|qs#fPM`LP%vFK4>w{_EB~EkHqivesCR*~lF9=ZF5Ez@QLBPacQkH7iib33OBRA#2#=xt6I)S${B61HjqOM5XBulj&#c9))xf9xH;`EXekjIXc<^^|Gjz!t3V3*afz*1OOd6n{80x>a&(uZFV|#do0*{yL!y5$2XNVNbA9>JwF>Ckb8!UU{cp-d@9=G^Omxo+?Q%VFCm_<AnQz4GrW;Ve`>HrfuO2MWISPHJ^nI5mNy=Z!*}9d(aR?x^j&e#W_Xf=5_iKQEbzNc?;c$U*wjh>6XUpr4{Mz*QAQnrVXnJ%6U2%c;A+!p_pui(C$d<LvX;jD=x=A(bjcJGE+(QGrm<+2*Rn`BSc`UT6qkox{V`gx1*!=uTKhWq%nP|}f@?Q-ol}wU-d@z^K4>4>RLMK<8E8WnkUm{UPCj&;nBW$xi0%%bX*|SGGtGyz6{BDv4(CTCv1^HCN&L~=q+3u~3l9i7`Xt0zA(k5AF!?EGKbtY`ke-l7W!IuCoJh_M_+npuxgESN$eu!rl2pLoGdk;ea=~uP1dgy^1T&n3(%|iA?vIbS=>vGknY{KyPB^O8n+OV@4%cJ&%FtKDFN^%kCSWu-bleq4_zGXgG!SmpxML%}i{X5B@6}oJ=x>vRSWV$wj*E*JB5Ah4P!aC!DQG4{RZpe)5H*Ce&oGWQi0zS5AFmaPki-yyI9iBQSCB%EbwdXm3bJ^Hsl2&*EM*}el-DrzyrRuQWNb!uU<4KHw(vkBmJLed4$*Y`+f0C~$5&qN?puDAC$0go%Kr0v1{;Xdi!1KGd~aEi+Sk=0Szdo+kVQh=k1>0<S|dQ6Eok6P6uYHbUWHL2EcH2g!ZWCXs7VLq&aBkL;PD&2FIUrp$cpGMcK&&VHpcL)UX<V&(`(A(6IfXVzqF6XM1>m5@rlY%Szk#dDi-T$9A@=V&=tGIj1}?>dACt#L7TD~dbM}+nTn*Keq9=(uY*kEqqn`<RRE~oVgigixKc5{wQTrU3Pgy{O%J-t(r~C-LjbM2hl;YQ!Z(k+@SLs=g{#RoI))xs2F(5)gft$s#J+-Q*vBdrj3PL_#!PL{3mwbbFme3qm-Kn$sGvOo1^y4s$)4OWE!rL*jJw87p^P>QDSx!Rsf;~aRst!+J>7X|1p26KjvYQ8E^XUNwd00-(g^wfw!~%2!KB03yC|D6Ii0@Qrg4FqyTuR#8wTB0UErw#R5*Zs9oUG%J4M1A-1Ta6pI7R2^lvRT7tFETzeoh($?#(eXg8uR!oBO9gN^;Ll5eU1sD?@-c_;GOh3V=U`xLifH>2!?#Qg;=_9S<b2i(G<GsxW%V>_S~eS0}SaQ@l~HCxK$RMsGey#RXwr#=Be#F{k%tUN5;JVr3#1!V37?AoG}kQ|x1zbkE=lUrDpV_3;%7|QVz<XW$g>uc_#A7foY_KqqwnCwpS1`0n|;V(5`Z_B{v*ZKlVZ#%G*Q-Jtj(m|ENzr(+VC(&@MXwudvfC|m2A9R}~(7z8p*+0URxqwOXMyhe;_4gO=>hwYLwkk4)SkZ%hR^W-;7_M6^=^n>M5sIN5b_!i0DDtJx78*!R{QK&re2qY*8-uy7A6hQ@amz|g)}e=qhOua&yEi`{a#=8d&?GkPXsjqoI@Bx&M+guI6YldUJ46ghdY1J0BEltvy4f;kbx%ss9Io}=050)i1@kmzJs`2rP}ZdG!Llqq)M>gGg*JRhRH5TB?B+)9VNJNL(#g4*I}#>Bwr7!`iga?SsEH~o&qqZRAVtFVA$@xSIw3m|zC!ZNon}Q>QQG2<RUFWN6V~X#yTsO}OI2s)TP2_ar{DHu>_hbgf^4tdCKj@QwEuH7;7Kb~qTHInk$Z>@(aHKNPKHRnhWG}w^$Uz&WUtgu*6ZzZGyXy1&9?V2z7kUhY|&Tnl;*$S+VXSgb%^=<<ZK&{`<{J3MYP_FsrF>N7+$Wz-wm7fnLi)^MNVOv#XY*F*icKlLI)G|xgV_#PU|@|)5`-E<-t{a1vx_rR=6K-;H^S>`|}3VNB+=C8BjQ>I^P9?ctr}C2J6LPPhb?ZHbGWfKq}Qt{AXr&ta-247LMD4RX}1@nZk4K?@FM+cAUo5*r=!7xfWOykSjfyIXq&yM;EE!f^#UE)guB#&BSz<$q)FKA77R{Zt->O+W}F9<F(pBK|T=fDJijG9u+MIbaEQ2?}3twLkOj3I*MLbw$0d0nu*6Bs$x2ZA0uCT!>J)bV%>6oK|%TlnnyzVv`oK1xku~Cc!LYGMPm;{5!4Rb4;l8N9FRDT-{>;fZ^L!B=Bg1vKJH&gE>RH1N)5m;dE;DuaPeJlH36qq(=hGBwK4|?9rYa)btMb)ZlAtiw6Ue&wX@`@vqwWVlJWGx!QWKfKH6+Rw11kC&mO*l1$lor%u?S<3o-7s9_3pZcW4>Mi0P+jk+#@rtw;5QFF(KJ^UNP!so0nd=4HsZUa78EQP=EoWd{1vv#XRG(dMm3BD>>ibQFWL8X}A_2vS$BuOVJh^e11nhy*LywdwK-Fi57u1r1NIWj`E<n|}aCwMN7AeY2R=k8A$66mevL%S^ZI1QyN>stX8K4<+qj&pISHL6@;n7S3+uok`(_xP>}|A9q&mR$xgS%ZgTY;@Jt3zDY`h_5=NiM?Dj;c&nS~saNW>;lp}}N){P(Sira+8;XtNO~y(qMJ#WZ!|iz^W%mO)5UPc@=oKgA%%nf9-JDq?Jxyx|>xt81Gzqfu#hu8Ew?Qew_u+0ouo@)dUSHkbB|TpcJA=M0%TN+tsT{@3&Fk<tfiZqRC1+9XZXXkT>np_b>oQ+gi42N=0E?16wE9IL#Bj)SR?5Cw(TC;n0)iLB-bV{mtHV4&CJB!1|7}qu5<m#pg#Q&j<|fdcqo^_lXU8@;<a+)WY9vUMgS-BJA}VNO74h?x`Oty#9WoR;55-(bSlw<akwc6g<DB}Gi7Iia;Djls2LX)~pG{SOZf_n_^l`m;n*ecFo5=K*5~gJ;D|+L7b0R3$>{MS<q~5)wKNLGtH-{#734FG~ccliyQRkX~ldppNQ?~G>zvNKE5Iw&YaP<%TAWFux-ZBIbS~)SPe!c09*_e}inLBjF`i2qd_{Td5uih~wx|NC|j#jv&g?r9@uhVBF^NOU+7KUOijrbgDlI)c^ll_RxBf9U3SD*l!{s%+z2iFy(nY;5J{bCJiA4uNsLzI=hLpnN#DGOnMHKh|2c?=hHZSue{9&<A275_^?Rlhz+Bv9>YIaMW_jRV}3C<k5zi97C*F?#-!)XsIB_l4%uo{t?Wg>jAt>mPM899x)Tb~_QU+f7Yd?b4uBv~@<#zlKIclXfCX3+%o`^L!I3WHPG%7VtD%%N31(1iV;#^-&TY9I5KueMz^;5veX{FfPdS;0^yz@>OvylMnTg0aDT|FZ+y3)u$cvV)}=#8=RR6WLSK|ypT<I;(xx^JBKkq%K3yudy(MLad+}K63`$kw`ALx#-QUfm%%Kfu2uV3G=OtU?<kVLvnfI9$xC18zD5b+-_;$zO>dS_taY)Ar{qMKb+2>d+t@~aJ69K-l|Z6E;Sw6j4l;bW5@+J|mHhrRJ{Ye+OaIazLv#Dj$h)mI@jzKOe$2K)D+?fhZ6CH}K=VmY-H0UC=7!lDE^9-Xq3QExb{FRx-Xln|j^w);)k>t+U4;oikYqkvl=z(7-@2V1bf@zZth$@7tR@Z_R6i@S$B*mmfiIrPIl%wjkt4HfHfsjiRfPivV)A`t4v)roT;3eAW)16wj&%uMr>mX0?tkfI&r;+0ofZcQ-Ao}cTVbL*MPMr0X%FQ@2MI8xcqA@M>w~l>udrNpX|_hLRl{3luQd`reQqroK~A{kXy)3JKW4J@nCYe4LCgq1wGH=u0dqhQ8p<=PDL#mqmIi>viUBHP4OCLU(Mn?0*Aj4K;{LySe_}U&;ySBDu$5YX2PK)#R4!8P{UuZXLU5+=No*P>{d3so`x;BK#OYzQFSsWSF0t*?aw0j-{gv(d{~TG+VU0O1$HEZ~9`?0Ie{`5c2ZMwYh=kx30T4A2zCyjdTy*ZV?%O%!^yp{mx=8|$nHDZ?v!DFIOWrrIlo4AJt|E9Nl{5V_TsTweP<Bb{rLS~Wevlgn%|uZABNs`rdEdnG`}hHnn+_$VpWv|peeHq6#b^=v-V^7xwlv^Ve;@Vk6|_s;JNitcCulbz$?0PyOm#d(Lax4kn9z$T10WHdBPj^|1i?c}{OOau*S<wWFj$<kYWF$Q+o#9K5L(Ua$2JvBP9SLp(oK$<kn9M4RNk(G=?Fh_NI<^1oJr_Ry?v2C7y{txCqVmu<<q^lWFx&0uMqS|4|RMm9;Ycgo(@s*@4{<Db1#|PJ%IZAwVN)%>!fA?s!r%M+|QqRfkjRhAJ{?W|7OUM2%a|$3JQgp+Dk&S7-Eah2T24Ke5yQ*Kb855ea*S4T$mi5oJ0xDPHJ)C<0N2*<e}>A12>akisV3n;2>K$<cx-iT_D6`Y{>g%)Wv>W4D8vM44%dqC%XwzsjT_IpqI@xRNLGH8o+Uy8G=`^2#g;Us>tU6u=vdY0JHU~gmC*`KuJZYJ>$1?!30Fis)3wfns=?YtniB4?K!Y{sZM086sQ9_myz5%2FmL};nI2>`qt7sJiUVSR3yAb@7{|_Ihh9iiBB09iu##RjJ}iHPW-4S0ntYOR&H7H-;}mGy-{oF+915vzk>dlv8ZL$${XV|LeEzai~C%b8%e-GS-E6fkbRg%R&hRp72|#6Kr;JB9|1S-gO)}XrCaTxu`qt!dle_+b$=uq2>2zA$4x2@@TikK>7h(Xs5_;kR$FTBJ0xbtL0J5kS|z*az;J$F)GSu})tX?NzjTp*%kMB!K&>E7Na;yK|1MUFSe^38&dKn|mReMHMbBB5FX1H55gY9c3&UInPfONvTdGu5LQHZXLVdrz^AlTiZ&a>~_v<YMeXrAc6&<B~N1!@ovrY5~B!KD4)T`RP@#Em{PnNU-9JE(TE<VvTllDV5$W*Uo6V;Xt8&jaiPdy-3<GaS3;AM1`pJJmDBX|42a;?4ePckQBTNH_#Ype+3knzf^06YMCNkKaZ`R74aSx@A!Z>Es4TEc#UL?>(L6}UIRqjjy=B|by=W(0&R9>5cvg{a;a<H0eb7uQTCi{xsDG101Dnvud!>dMHmwjAB|e}>CxULP(l=SNslMqf=^1BJlI3)smi-P9`37lX(0($JBEhMfLMBKDj1b73&%<4tJRPBqq_@QaycBhY8{_`}yh`ydZ`+9qYE4x#9koEx}I!=);6%F2xI4NsML+S7<QkrnRSj#L+4l?~lWY}>@)WeDe*EU0gylFaw~_gj+RC~6N)d4q#G#{0)dxW_8my;)$R7=g0p%{EUbt{q)tDL%l#EFd86N0LfYx431eAPKT<&`lE|T$4@r5v*IbtJO;4V$1$}D<{!;b{MmJXOL1cuR5`|tY-zD<MqD3U&n0U-d+#=iU*;{oGwmMJ}tA_6b#9#*Z5$D4BNjRdxg`~J@yHF5nVO3^}dY|w@O3y)B7h%q;|6fr-Ss1<sq$JEJiKA;KRU?fIM12m)U3uF~h9M?T6S1{M<zWd7GOQqKhJ@ZNYjI--XRos$u)jq{Pp!iF0^`_<`odQXH8h<Z9OJmC_Yh94UW?zbnXw&d^Hh%O?)tU?2fS$9*Ijl;|QZhnk4JcCbHDIAi0|yw+^-H|Jt4C8IdHnYoFY_3`wQ^R2>V4%_A2!L|o-|8>1szD14{5QotO!4YgfM>E(>VFa1M#CdZXN(#1t^uAG$NjAvS&wQbCWmN<2O!j&h4UjB1tf+v}4q3Ac$+<~90wu@y;uF3j>`o>M9`dxO!N*3^Z&|iLO_^K}D)FXc0CBm+{|BLe=8P-#<Ar-98S8ZkE&L~o<2eSiZr(}7b7V5+)1~abx87%;`-V&dJgf|tCk-`~Z#WnN3}N-c*)=D|wm@OpxfS_nqUf50<&I@(Q|ii|!}gcjjG5~^G0%N=r#=p;Wz6|d`>Uz}o?u|}s~@fGkh0tqOo=x7>maK4j1exOx;!La%}wbd+nN#RyBX_x$&b4rb-adS?>K?}cGx}UF|Ox6pqdSj@*5h)WrJlXiN1Hm<x`9mEn3|C#0Yk}5kwT%&)+|8Uz>aP&oFMs#i%ms%WCC^b!N0`U0n&2)JFLbulTQqW%bm{u)@Q3U!^YE6K)#*85`e^kN=jECPgL1?mE~G=Lf&#V;m+krbo@nKyx3KdKO{XlQCz1NfOnSK%+d8<$W%FQm9Y4z247v_SJsPPP<Y^vgJ?Zx;hwT*jo-|#h*a?6}m;^&iMFOZWQ&2)zQR~yn>XzvSPb>i1)gv?QfaEsGGgm{tIAz%)jaWJ>HMgj(Ea_7fgildZwF^LF2J>tXwH6gVeUP-AI6QV5D(8^`Wt;?*<^VY7y5f#m}#7Df<C#6^h{rEmeHwveEMvqk)kL1n53f`-5v3XKX8g0&JACy%v)I5+C(l51a8mFg>O!<ntr!ZK3d+L;uin4Kse`hfF{T@DHsxVq5VhaS}^_T~Jr_76ohDus)_lP|wEEAGK_FNGE*Z=j2hzPQ&tTkFwk0tmQ4)k-YAsG8VZSWJd`B=qAhco*v;I>5bX3(pmCP81tYWL~PRi6y((1S7MVsbnky108xTAFqpBW>3mP?<udUlNhE8I!`A(Pk4gmD*#GOxi*y&F0D#U*I0LUUtF}z1e*w+4AeTFz6F|+WJb(DQr6uzDGKuM6NnBv7JXJ)4Zi6&;&%`V$h_-9g9!WQ1<YdTsz?g^G-(<)`Pfy)PHo*6yxl-s{$?-wEUnKK4<V3SMuL0}z-aX}d=h%d|2gIv67wexyM%vpD)h7MWr)3s8xR&5k_!#F<-FO=z=lW(4y`cMK$5c0Koku{&m;KW*GUq-#@B^MH_OjF5DeXDbwyH>BJi&rb2q~FKC0kgstvc|i*W7d=iFY`&v2fetmRw{Hp9L#pT0P~b)&#k5u8z+Q2Os@^)gcS5=XPS`@V+kN-**r2&SWIY#z}0Z;T?KwN>O-^NT?+H28YIbHb!s;zgKj*<YkSTU0<Joprc(;^s7<sqc8PGv8g(v*I7o7GwU5Na83wZO`M#S_T{;s2TshLl;!hZjAOXyc50v!oZ4MMc*p}{)AOn~)S}oi5D(Ub9QZfAz%6rSU2(ML+yqde^k;hM`ZK-Aw1rvi_FOlf(0%tT?!kZ7aJW3Zcgo}jz`KWe0x%j5GDXPX(@d-&9(=js(Esy!M0kQa^Rl#hcT|JKlyo6XtnBE(%vZV-xsqyn3uSbUX>2Fb?6q-47|NE)8CYGmYuks$%4PE~3BI2z@)KB<8p@~Zp@QseAnRx%If>A+aNHo&MKH)>D;kfXdE|T<?}#1<TBSA42AwS6;NY3|Cw<kxwBN`=1D^#V*a2X&D+Kan`esT-&u`UWB*9mhLIs%=PG(Dxzc|w&BB~fu^aJ{E(t0mL0?h(Rz<z;FeM6{fNxeyGgj^^=;+7^g!k3C8AeYK&2K;1DM7i4VpqT=X^kG9w>Q6gFZn8*<j@BY9(nk@-y~T(2WlQUv;}|*r5xbqJd^8BdT|(w?bDzcgSX&YDKU02~+W+oA-wx%lrR|qTfXq$xwzxIuoz|PKQx<sT?(85FXC2X9G7K-#R~6rx^`JxJ20qCwxIa?pADN__vgSY2a%Yu$9x~(eah#ip0p1z=K2S7(<XbZ%t!G};>nVza5RmS>yE6+4=c|qG)&ZeqaU)9I@8l0?xvRc&63{g>^J$zB>Vm}3lTP<>uB)*USV8yXZuhl}bfD={eO_3U;PUx74Z8{t(`OsBbUabrQXkPY*3{$ZS4T4aO+|2icFahTFRV&%bPI_0^QNzmb-M^qE&~mmxK8p~S;wa`BQi|)MO!x7@mX&PZ9um(29bcUlBUbj*;AYXwWI!d)43?F)H*LuvuHuAOtS`>^dBwl_?t0g`D%9sl1!Xi->91oyUD|-aO3a<zvW9BZ^QWKGPgSuBAX`BX9=RyMU!taO+3n-Gjv%{uJQZcQ>X5d<C>Yt>E3XK73e%*_d*uM7AGhLzAB@UOTw~yII{MIIJ}<V>g3j2Q7W3HVXx+TqhXMKXfXHzx35eQry3+zPhpBFOrOe9Pdn2ftn4Rh=pfak8oB^*?BrXv4yT<PWcAfW>k**YmFF$kcz0!@Hp1|O3<H99=o7Mgy}GD*+xj(*qa3JgW-Ly;J-Y~-19HY(Gbqk}cTf(J?gI#!nM~>aK&TZ&MR{$OC4bHHDyQ)r<&@kO&?zrY6pV@m+t*oUp#dGcD!9csq1|^+r<?G=$>pybt_p5)su$6nFl%=_2~bj+Ha%|{(3DgB-W<!K`_u$DDMQuWGjVJ{tZZmZZRQ1Q779AR9WV)8O|_)H9^Lh=c7v9Y9C<NvdcDA4iFkenO}hv{5Nvfk6Imqdq~aZg9BuBLIx|6dO+gNSEfk_Px*C1aeA%tJg6L!aBm4Vjk|0wMLQ-$`5a4=~brCJSHPZRD8^AHC`H&M1pwb{%I}PMUd0y;2z?~;jIPY`E7eToE28M0~)<;x~8$ouEvzoY}h_{mgW3>2EE2Z2o)fXug0?%|aHgK_Eto$5UM+@VY&#Wo19q8=Z{02VEvQS=5#>97GdSy(9_WUqHH<G|iPxXP@m(_i=xqIv5q}uQvhT!Ps^OTaYMy*S{rl(Qz2gkB5y8WeeoR$%lN_U7`+!QP`f+f9t)e>hLPofvtg}iNigu}Mv4Z;4m0T+5`y3`wIhQ&fwa}x~nSeLgH*?qR8{@pQ~R0^eQa14C$V(^Yk7LmnQQCmcP9*M$}=EC`jq!bFntWOwC7X$rws()295KJ4+qWOC=ei9|v5!P@X5S`5aqv_~$3OTWAZMhZR#T#*?%GoAvd(BtPw(Rd1iE*&4hlVNJILKHe3lV@%)wl+i_C%CRi<OL&x{|>8TS~FKco+tbWxX`qD_;&0RL3g+)ZNW(=J+A@^(BmlJ+cCf;&&!>;%>yxcY%7nK1qDVvW#MhISyEnPZDg1MmkirakRlAk?Hqui)BbN8mSj2CtDUP5u}MnK<^EnX?p_>OcU`j7bX>wBO~q?`_~bn6MaqtTZNx7)EU~v#sm1U9xm}`oL1<o{Tn@=wt3`5{R+?pOWnw1OP5nk6>m6<DE>}@sM{%Gb6bjSC;W2&h6W}Un>_lko{SBcB2XA~qk>2wHUX<m%f%~Eg{B__+x7c?=>f@SMA3wDFQi;L_anhzQ=AE$qx*g7u2+<M$u7|HpH$U>23nTb{h?&XKHEo)YBvt(NYV@_u%8eZ6fI(kyNWF#yJwb;&4DI@>h!oEf$SFJ`%6l!H=6-ec{2kom}0#83*3=sF8$dNPP#2dbj7#$w+EJm{Cjor%Lf0O%ulPnJF$Cf#1=1dLR82A-u{I629CDP<2I*@2VclqPC);9_^bBi$;$C3?(`zRD2kw?7NgucnkU3;k*>D5<=OShJ)t)##aQ1~CZXc?qe)DBv3A|@%g`@WPl0r^?_O%!<?)95{TuX#8tM?KS2KZ_v{ze(d82Mw{J=T*O=xY4NKkFp$trO?2mjNz7y|x0jC7qXu+s~}UV&Kq^HRU%g)s<DlC>Eoqx%;Ycw=2g=LI~GJ0X6i6ZXpx0eg;#g|5bUn^#wakJ)sGr7j6i6rn&<izC&P8Eo;b2z`b9U_jEZ6{Fr-c7B_|9$^tDMDD@2!-o{GOyX2-M~Y{V<jsOVzh!R|*w3V-Q_JdgOp~#01F_|R=jDoJhGW0XQ&~E8PH1SdLF40nt9K23+%+MMe4;E^BHF3NxA?i#QcI>DSaKO91Wbl}LnWr$N<6_ijsVY_PeO}HAiLk7)HbDlj{T~xp*i7hetOJ73s?j|-xIB-^-UG3Ru;!1_#bJY29KQyu|S_}!H{%G)uzU~pLJX^V62&W==U$^{E=v7rq3!!Xy>@RAFW@p!N1(4Rpo_4vM}WlHhC$_Zh7twH9z7eZ$^&j7Zh&jI~ku~wYtuN&+A(=5VGRE`*4PG2+6sSB2)NK%+52tscjRHAO=0|u%hw&JJXu=K5KW6^d>7;C_@GyaJZetUcBh@);sG3u&Z$(JZh2o(p)MV<V~kE>s3kZCP9IgD`*~uRSpnq@<||A4k7N*l*UZgduq3pHpq_2LR14YxJ}a-Sgbdkf1gmCdh*!I?_PL5YTQ(JeUWeBjIyPj;HA3c9>mg0WSX8S;A&7a>i(})FHGzg!3s1h7WK#sjmnekO8gLSdoqMd*?v)IjE?xsn|n~weOmgz1NBA?BBFAHVe9ND(Z)LkGJQ`w7A&)!N$nkJ2wwUs4Z=y5d^>f=;WS)GryG<RR$^?3l!jT{p13i5?m~A2b<F>-v(HI4Sh()mNvfG4*7}d-)E2jdlbI<SsCJx$=t(2*2&ZU|PJ#Z6nbw<zMzudTnpE`tbe-7)^l8UzFQg(5Q?MAsWIEg*?g*`S>&cF=v)jB;q{z7zGBSr~w!fpzdLEp8h2C9(`1YIBC09gV4ABObKJ)#ji?}Evd~?1Oxv}oAn$7c8Q<Yn%6M7ozIf6k))!|Xw6$8Ky<zDuM3B3|IF5T+@NHey~ea8gwUK=>!gu??+>tiG_I$vY#ft`AFh2ooTCoLlo9=dFCdIw+)rBUdV54{noVuhF9r&Hvt>`i`LiNwy|rR4hZP;x$h6N?GcZZdaZXp}nbD5dp4{t4TH_ScQf8$7S6EBI%?x2d2k%b`7pP;br1_vX>E32r!!F&}z;Z)DRUCi9v;SzaV_pLY(N!*+)t_ehQ<RPA<H42wD5D2T<zHT3CYlrV<T82C3PHft3yx-SZ&vSb;w-dV(r&qa#yZbmJ*)V(9<aOT&^L3C(M+K<l>L`VTe9K+J9o3_zdWcN#Ms1ty)mc<lGM0w(6;)Oag{g{%s#^ix;eUJ%ObC!e#LwQs}^mi?6@~#ARZdE7!)Ax|N4Ogzq*m{7olc0tP@uM<v=RIc9(GJgU7A)j(|HQfJDaceR2TcqGU)F?~4qOn0k~I%3y$8o2N!tnwPd#9uzLDk0At@`d^5YK<Zz8Xq#Fuk;qgaoq`T0NNBv8X4(a!q0NmH2PQQG(iyuBdGNDSv}rd|%H-dzavI|~ltmobU70a0NiOU&%xNo*T~qc5cbBClw%ri32Uevkq!c6?uDmf?puPLePvuxuM#(duLg?js7g!L(TVDYPIj#2i`Rp3J4o&#t_{5CBe;6T*oA66!FebIlHf*1_!61Vk3z8sgtF8Ly1M$b{KMh5EeKuRW58_jiPN9|zFlsA?E@|3pU4;1-XG=vcA!((H*YD#RHqNzsqfsEKw3`TozWtRg?&g1|9V-+}-1Q#!tOj~$j2bmTx6q4B0c@t}X9F=f@6nEeRenv0lwaiVwn9Xk5AfqY79iF~6PM?ohz2;uNYt7ZQ*J35N??3S@*?o;#ZTGU8pyZfK2^BhT?d8TmSVAG^z9djB{!&~Y;6;sR`F^*5yd{IZ=vck?-h3VE3igVCIv7|NSI{Dngy=4+0btC0{&M4^8kZ9EC_k`tj+09C5<TFTS2CbG;qGA!Rp~nY=w?>e#+^V$c{xeOG7v-N&9bO@_BigSDbCHo-yn%)rY1YYCn{(UBK(vwQ#Wrejai&7N|B~9@JzP_~J+4a|s~>V|SaQ80tknsNbt(-SAD?ug*JY(H>yxyLmzCRrbDo$@l;uXw*kMesOE`;=KTIlm&~qYpV+mYW2Bv+?FUs*Bd;Aa-fMD;5FV)@e;*NV#dK_abf7oQJITA%Dh#DXmU|pcHT`1Ig$qW!2xi6UtU-f*A`B4ry1<aQ@MKCWhn1_zqu{H5OK{tErVx-{J`xvLL#pG}(aDS2NQYxSVvUca+OSx3cI2+H0{iIKsstTZ@sb2n%yBR!V<*=9ezm{Y>tU8LozQ2d#df8SKsy;ybHtoe&_Cpzv;GWQ#l~yeVq(@qZILv2Z81!RD%DG!H8n2`pNLmUNb6d_c6Iq>aw%Z(W=Umhwv-wptS*SK&R3w!Q%!G9wf}Acs<*A`pOD3P=Vcxt*?JJ>4QzN)vzoA@Z1xUUxJ<UzgW<@87L5Pm)w)XHT+x5_yT1eq}gHU(z3p{zyIZz5WAWJU|i4f9aG+yk}6Z5MpRUsvI#BKH^d>RLkYlEi5;x_Rt=><HRQ#4Q+{p=PJ0d6{f>D>Q=rjU0yi&lHUj#)WIFBF>`{R=LGWYyi$(fTU}cI<o9JchebLa<L5hFzQ@xE?3pYjM9JuqQ!z$Ejy!6IY#c3y1^*b0$O*7KWs)THLAh9ow?ER6xwLNKmaNA%TRhOW5?&zo*oC={zY`Xf80B_mMdeks2vJo2)o=!hvxuk(dRqI0FAirfFJI8}Vfgn0Xx(`})h<n15o19G0r>j1(+5CzE^tsgZSRqw@djRBN#jk^>k?pLz4j&3b&yw=!kP1OP>~WN2tY8FG%?>_n1nAA5IpfQ&CVw-?!lowYk?5b^xhN03lyIJ*sWQ7J~8+~#Pi?7n=JSB3gQATjQeDcBeVWsTrRn?>NFO+!R!gqhR7vr&7>feO^)3z&I>1j9(EzoYSF^=NLBQ;u7}@mE#qp!|#7Pz|gbVgBC9GD<H+Twt3e2#@bJU^^=1O!Z;DXiNFck47_CF-y^p6^vpF_~)g-1>;YFGG8DEW!Jq%Ia64(fvAkdAip>Hc(o`PFX%{O@WEDh@vx#vbWeDZ%G>N)Q=nA`r)zJwAd#jql*$bR@0Hy!&&ANm;_Ll83lX{;L7!rAjmy!2feRpERB~N5s4i0-kyvm7ge>46F}5$iVen|dOlw5YKZ7{oM+E{(^lw`(<gpQAxZ1+Yk)#d6-g^RVJ%Dn`0ZHc94QYjIg+#oDq)2gCyK!<&XG18vNntrb*TE}}ALL?W79{h(^S%zx3Hy)eg^aiGsIFhJHkHCrFWWmBJ%vqGt#tULC>$k8NO~?d9_W^LP#-`Eqi^(FbaGFsC!O23aGjfzEDu=xA9!Fq$Z9n3Rs*XcI$K^%C>58Cs>yJ%)PrqaKcEb>-H8BRp&x8ihe>imn%Z9liHx+6^0od4kg3W083-7!U4VVSYFMs3hIQ`>2%CGbrxRjF*PJOCvq@pr=gM)eR8iHV>tY{X3Co{|td+?3WTMYnqgU_*@Kp6hz@n{P*tA;!)xrF1%c4*V9n$}K{|&C*Yy>752at~_NxrQpx;iq<TNeZq)^m3*%tLge5zl941xk{XN3-qu=*`MWbuuW`;9me0r-=z2?S-MjqV3zwfylL!COqCwn<~ekbRYggVVDH`Bbs0Ghy-)j(dX3=KLlDMfhkw}E{L&PaC`y&lA&`;d^`K%STGek2g$P5WF;Modeg=Tc3{cGLK`bWOkUg~cIFsl{9R(6+OuBQyyz>d{81Hu@MBxQ&!l!^miv`<Z&YHEFVpYYbno?9%|B!j0v~{kUwVMeF<?H*w>(xAQ~Z(SL-~$r*f38>67qKWoK=sV;mt3YqWnmfMQW`EARv%*$WF1b(Q_S{qa9AAg7&<+@zl496nqAOOkF-RWitv!&Lyl+x^zq_d<ccd2Rcyas?3gQBtus8&i0YTUj$o{y|PDaH%}eKTM&<8Pv*4AObX=m1S<i`8G1O?z0Gt6(KAH}S~BZYcrJ_kL25jbuuR8|k!g3VS|&nbl8hH}!SLT60o0>+@>naf^+L7x?+O@(sdClRg~fv*>1GgE)3-1?r;xE+x^Msh00000ptC1B)$~DR00G6x0rJQTWtDjRvBYQl0ssI200dcD'
+
+def load_template_document():
+    """Memuat FORMAT ST.docx dari disk, atau otomatis merekonstruksi dari memori jika file belum diunggah ke GitHub."""
+    for candidate in ("FORMAT ST.docx", "format st.docx", "FORMAT_ST.docx", "template_st.docx"):
+        if os.path.exists(candidate):
+            return docx.Document(candidate)
+    raw_docx = lzma.decompress(base64.b85decode(EMBEDDED_TEMPLATE_B85))
+    try:
+        with open("FORMAT ST.docx", "wb") as f_out:
+            f_out.write(raw_docx)
+    except Exception:
+        pass
+    return docx.Document(io.BytesIO(raw_docx))
+
 def generate_docx_buffer(data_gen):
-    template_file = "FORMAT ST.docx"
-    doc = docx.Document(template_file)
+    doc = load_template_document()
     
     # Pastikan paragraf Segala Biaya dan Surat Tugas menjorok (first line indent)
     for p in doc.paragraphs:
@@ -310,7 +503,7 @@ def generate_docx_buffer(data_gen):
     while len(t_ttd.rows) > 4:
         t_ttd._tbl.remove(t_ttd.rows[2]._tr)
         
-    # Row 0: Malang rapat dengan baris jabatan (space_after cuma 2pt)
+    # Row 0: Malang rapat dengan baris jabatan
     c_tgl = t_ttd.rows[0].cells[1]
     p_tgl = c_tgl.paragraphs[0]
     p_tgl.paragraph_format.space_before = Pt(0)
@@ -322,7 +515,7 @@ def generate_docx_buffer(data_gen):
     c_prefix = t_ttd.rows[1].cells[0]
     c_jab = t_ttd.rows[1].cells[1]
     
-    # Teks 3 baris baku Kepala Kantor (anti-offside)
+    # Teks 3 baris baku Kepala Kantor (tidak offside)
     jab_kk_baku = "Kepala Kantor Pengawasan dan\nPelayanan Bea dan Cukai Tipe\nMadya Cukai Malang"
     
     if data_gen["tipe_ttd"] == "Kepala Kantor Langsung":
@@ -345,7 +538,6 @@ def generate_docx_buffer(data_gen):
     else:
         # a.n. Kasubag Umum
         if data_gen["is_plh"]:
-            # Sisipkan baris terpisah agar Plh. persis di bawah a.n. di kolom kiri
             new_row = t_ttd.add_row()
             t_ttd.rows[1]._tr.addnext(new_row._tr)
             
@@ -476,7 +668,7 @@ def render_preview_html(data):
               <td style="width: 38px; text-align: right; vertical-align: top; padding-right: 8px; white-space: nowrap;">
                 Plh.
               </td>
-              <td style="text-align: left; vertical-align: top; line-height: 1.25;">
+              <td style="text-align: left; vertical-align: top;">
                 Kepala Subbagian Umum
               </td>
             </tr>
@@ -582,7 +774,6 @@ def render_preview_html(data):
       Surat Tugas ini disusun untuk dilaksanakan dan setelah selesai dilaksanakan, pelaksana segera menyampaikan laporan. Kepada instansi terkait, kami mohon bantuan demi kelancaran pelaksanaan tugas tersebut.
     </p>
     
-    <!-- BLOK TANDA TANGAN: RAPAT KE TANGGAL MALANG, 100% PRESISI SEPERTI GAMBAR 1 -->
     <table style="width: 100%; border-collapse: collapse; margin-top: 25px; margin-bottom: 20px;">
       <tr>
         <td style="width: 44%;"></td>
@@ -590,7 +781,6 @@ def render_preview_html(data):
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="width: 38px;"></td>
-              <!-- Tanggal Malang rapat ke baris jabatan (padding hanya 3px) -->
               <td style="text-align: left; padding-bottom: 3px; line-height: 1.15;">Malang, [@TanggalND]</td>
             </tr>
             <tr>
@@ -605,9 +795,7 @@ def render_preview_html(data):
             <tr>
               <td></td>
               <td style="text-align: left; vertical-align: top;">
-                <!-- Teks Ditandatangani secara elektronik dengan warna resmi #BFBFBF -->
                 <div style="margin-top: 75px; color: #bfbfbf; font-size: 11.5px;">Ditandatangani secara elektronik</div>
-                <!-- Nama penandatangan TIDAK BOLD (font-weight: normal) -->
                 <div style="margin-top: 3px; font-weight: normal; color: #000;">{data['nama_pejabat_ttd']}</div>
               </td>
             </tr>
@@ -626,209 +814,299 @@ def render_preview_html(data):
     return html
 
 # ==========================================
-# INTERFACE UTAMA
+# HEADER BANNER EKSEKUTIF & QUICK METRICS
 # ==========================================
-st.title("📋 Sistem Otomasi Surat Tugas KPPBC TMC Malang")
-st.caption("Input Real-Time Database Spreadsheet & Generator Dokumen Word (.docx) Resmi")
+st.markdown(f"""
+<div class="bc-header-card">
+    <div class="bc-header-title">📋 Sistem Otomasi Surat Tugas — KPPBC TMC Malang</div>
+    <div class="bc-header-sub">Database Real-Time Google Sheets & Generator Dokumen Word (.docx) Presisi</div>
+    <div class="metric-strip">
+        <span class="metric-pill">📌 No. ST Berikutnya: <b>#{next_no_preview}</b></span>
+        <span class="metric-pill">🗂️ Riwayat Tercatat: <b>{len(riwayat_list_global)} ST</b></span>
+        <span class="metric-pill">🏭 Master Pabrik: <b>{len(list_perusahaan)}</b></span>
+        <span class="metric-pill">👮 Master Pegawai: <b>{len(list_pegawai)}</b></span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("⚙️ Pengaturan & Kontrol")
-    if st.button("🔄 Segarkan Data (Cache)", use_container_width=True):
+    st.header("⚙️ Kontrol & Utilitas")
+    if st.button("🔄 Segarkan Data Spreadsheet", use_container_width=True):
         st.cache_data.clear()
+        st.toast("Data berhasil disegarkan dari Google Sheets!", icon="✅")
+        st.rerun()
+    if st.button("🧹 Bersihkan / Reset Form Input", use_container_width=True):
+        reset_form_input()
+        st.toast("Form input telah direset!", icon="🧹")
         st.rerun()
     st.divider()
-    st.markdown("**Petunjuk Pengisian Cepat:**")
-    st.caption("1. Isi Permohonan, maka Kegiatan Baku otomatis terisi.")
-    st.caption("2. Gunakan tombol [+] jika ada lebih dari 1 petugas atau 2 pabrik.")
-    st.caption("3. Tab Riwayat menyediakan fitur Cetak Ulang, Edit, dan Hapus.")
+    st.markdown("**💡 Fitur Pintar Aktif:**")
+    st.caption("• **Auto-Kegiatan:** Ketik Permohonan, kolom Kegiatan Baku otomatis terisi tanpa kata 'Permohonan'.")
+    st.caption("• **Smart Lokasi:** Pilihan titik lokasi langsung menampilkan pratinjau alamat di dalam dropdown.")
+    st.caption("• **Compact Badge:** Pangkat & Jabatan tampil dalam 1 baris ringkas agar hemat gulir di HP.")
 
-tab_input, tab_riwayat = st.tabs(["📝 Input Surat Tugas Baru", "🕒 Manajemen Data (Riwayat, Edit & Hapus)"])
+# Baris Tombol Cepat di Atas Tab (Sangat Membantu di Layar HP)
+col_top_act1, col_top_act2 = st.columns([1, 1])
+with col_top_act1:
+    if st.button("🔄 Refresh Data Sheets", use_container_width=True, key="btn_top_refresh"):
+        st.cache_data.clear()
+        st.toast("Sinkronisasi ulang Google Sheets selesai!", icon="✅")
+        st.rerun()
+with col_top_act2:
+    if st.button("🧹 Reset Form Baru", use_container_width=True, key="btn_top_reset"):
+        reset_form_input()
+        st.toast("Form siap untuk pengisian baru!", icon="✨")
+        st.rerun()
+
+tab_input, tab_riwayat = st.tabs([
+    "📝 Buat Surat Tugas Baru",
+    f"🗂️ Manajemen Data & Riwayat ({len(riwayat_list_global)})"
+])
 
 # ==========================================
-# TAB 1: FORM INPUT SURAT TUGAS BARU (EFISIEN MOBILE)
+# TAB 1: FORM INPUT SURAT TUGAS BARU (CARD ARCHITECTURE)
 # ==========================================
 with tab_input:
     # -------------------------------------------------------------
-    # 1. DATA SURAT PEMOHON
+    # KARTU 1: DATA SURAT PEMOHON & LOKASI PABRIK
     # -------------------------------------------------------------
-    st.subheader("1. Data Surat Pemohon")
-    
-    st.markdown("##### 🏢 Pabrik 1 (Pemohon Utama)")
-    pt_1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=[""] + list_perusahaan, index=0)
-    
-    c_p1_1, c_p1_2 = st.columns([1.2, 1])
-    with c_p1_1:
-        no_surat_1 = st.text_input("Nomor Surat Pemohon 1*", placeholder="Contoh: 63/IX/BBSA/2026")
-    with c_p1_2:
-        tgl_surat_1 = st.date_input("Tanggal Surat 1*", value=datetime.date.today())
+    with st.container(border=True):
+        st.markdown('<div class="section-badge">1️⃣ Data Surat Pemohon & Lokasi Pabrik</div>', unsafe_allow_html=True)
         
-    permohonan_1 = st.text_area(
-        "Perihal / Permohonan 1*",
-        key="in_permohonan_1",
-        placeholder="Permohonan Pembukaan Segel Hasil Tembakau...",
-        on_change=on_permohonan_1_change,
-        height=75
-    )
-    
-    kegiatan_1 = st.text_input(
-        "Kegiatan Baku 1 (Otomatis dari Permohonan, Bisa Diedit)*",
-        key="in_kegiatan_1",
-        placeholder="Pembukaan Segel Hasil Tembakau..."
-    )
-    
-    pilihan_lokasi_1 = st.selectbox("Pilihan Titik Lokasi Pabrik 1 (1 - 12)", options=list(range(1, 13)), index=0)
-    alamat_pabrik_1 = ""
-    if pt_1 and pt_1 in perusahaan_data:
-        alamat_pabrik_1 = perusahaan_data[pt_1].get(pilihan_lokasi_1, "")
-    st.text_area("Alamat Terpilih Pabrik 1", value=alamat_pabrik_1, disabled=True, height=65)
-
-    # OPSI PABRIK 2 (DINAMIS UNTUK MOBILE)
-    tambah_pt2 = st.checkbox("➕ Tambah Pabrik Kedua (Jika 1 Surat Tugas untuk 2 Pabrik)", value=False)
-    
-    pt_2, no_surat_2, tgl_surat_2, permohonan_2, kegiatan_2, alamat_pabrik_2 = "", "", None, "", "", ""
-    if tambah_pt2:
-        st.markdown("---")
-        st.markdown("##### 🏢 Pabrik 2 (Pemohon Kedua)")
-        pt_2 = st.selectbox("Nama Perusahaan / Pabrik 2*", options=[""] + list_perusahaan, index=0)
-        c_p2_1, c_p2_2 = st.columns([1.2, 1])
-        with c_p2_1:
-            no_surat_2 = st.text_input("Nomor Surat Pemohon 2*", placeholder="Nomor surat kedua")
-        with c_p2_2:
-            tgl_surat_2 = st.date_input("Tanggal Surat 2*", value=None)
-            
-        permohonan_2 = st.text_area(
-            "Perihal / Permohonan 2*",
-            key="in_permohonan_2",
-            placeholder="Permohonan pabrik kedua...",
-            on_change=on_permohonan_2_change,
-            height=75
-        )
-        kegiatan_2 = st.text_input(
-            "Kegiatan Baku 2 (Otomatis dari Permohonan 2, Bisa Diedit)*",
-            key="in_kegiatan_2"
-        )
-        pilihan_lokasi_2 = st.selectbox("Pilihan Titik Lokasi Pabrik 2 (1 - 12)", options=list(range(1, 13)), index=0)
-        if pt_2 and pt_2 in perusahaan_data:
-            alamat_pabrik_2 = perusahaan_data[pt_2].get(pilihan_lokasi_2, "")
-        st.text_area("Alamat Terpilih Pabrik 2", value=alamat_pabrik_2, disabled=True, height=65)
-
-    st.divider()
-
-    # -------------------------------------------------------------
-    # 2. WAKTU PELAKSANAAN TUGAS
-    # -------------------------------------------------------------
-    st.subheader("2. Waktu Pelaksanaan Tugas")
-    c_wkt1, c_wkt2 = st.columns(2)
-    with c_wkt1:
-        tgl_pelaksanaan = st.date_input("Tanggal Pelaksanaan Tugas*", value=datetime.date.today())
-    with c_wkt2:
-        nama_hari_en = tgl_pelaksanaan.strftime("%A")
-        nama_hari_id = HARI_INDONESIA.get(nama_hari_en, nama_hari_en)
-        st.text_input("Hari Pelaksanaan (Otomatis)", value=nama_hari_id, disabled=True)
-
-    st.divider()
-
-    # -------------------------------------------------------------
-    # 3. PERSONEL TIM PETUGAS (DINAMIS & EFISIEN MOBILE)
-    # -------------------------------------------------------------
-    st.subheader("3. Tim Petugas Pemeriksa")
-    st.caption("Secara bawaan hanya menampilkan Petugas 1. Gunakan tombol [+] jika ada petugas tambahan.")
-
-    data_petugas_terpilih = []
-    
-    for i in range(1, st.session_state["num_petugas"] + 1):
-        st.markdown(f"**👤 Petugas {i}**")
-        sel_nama = st.selectbox(
-            f"Nama Petugas {i}*",
-            options=["-- Pilih Pegawai --"] + list_pegawai,
+        st.markdown("**🏢 Pabrik 1 (Pemohon Utama)**")
+        pt_1 = st.selectbox(
+            "Nama Perusahaan / Pabrik 1*",
+            options=[""] + list_perusahaan,
             index=0,
-            key=f"dyn_petugas_{i}"
+            key="sel_pt1",
+            help="Ketik sebagian nama PT atau pabrik untuk mencari dengan cepat."
         )
         
-        p_nip, p_pangkat, p_jabatan = "", "", ""
-        if sel_nama and sel_nama != "-- Pilih Pegawai --":
-            detail = pegawai_data.get(sel_nama, {})
-            p_nip = detail.get("nip", "")
-            p_pangkat = detail.get("pangkat", "")
-            p_jabatan = detail.get("jabatan", "")
-            data_petugas_terpilih.append({
-                "no": len(data_petugas_terpilih) + 1,
-                "nama": sel_nama,
-                "nip": p_nip,
-                "pangkat": p_pangkat,
-                "jabatan": p_jabatan
-            })
+        c_p1_1, c_p1_2 = st.columns([1.3, 1])
+        with c_p1_1:
+            no_surat_1 = st.text_input("Nomor Surat Pemohon 1*", placeholder="Contoh: 63/IX/BBSA/2026", key="in_nosurat1")
+        with c_p1_2:
+            tgl_surat_1 = st.date_input("Tanggal Surat 1*", value=datetime.date.today(), key="in_tglsurat1")
             
-        cp1, cp2 = st.columns(2)
-        cp1.text_input(f"Pangkat/Gol {i}", value=p_pangkat, disabled=True, key=f"dyn_pkt_{i}")
-        cp2.text_input(f"Jabatan {i}", value=p_jabatan, disabled=True, key=f"dyn_jbt_{i}")
-        st.write("")
+        permohonan_1 = st.text_area(
+            "Perihal / Permohonan 1*",
+            key="in_permohonan_1",
+            placeholder="Contoh: Permohonan Pembukaan Segel Hasil Tembakau...",
+            on_change=on_permohonan_1_change,
+            height=68
+        )
+        
+        kegiatan_1 = st.text_input(
+            "Kegiatan Baku 1 (Otomatis dari Permohonan, Bisa Diedit)*",
+            key="in_kegiatan_1",
+            placeholder="Pembukaan Segel Hasil Tembakau..."
+        )
+        
+        # Smart Dropdown Lokasi 1: Langsung tampilkan isi alamat di dalam label pilihan!
+        def fmt_lokasi_1(loc_num):
+            if not pt_1 or pt_1 not in perusahaan_data:
+                return f"Titik Lokasi {loc_num}"
+            alm = perusahaan_data[pt_1].get(loc_num, "").strip()
+            if alm:
+                short_alm = alm if len(alm) <= 68 else alm[:65] + "..."
+                return f"📍 Lokasi {loc_num} — {short_alm}"
+            return f"⚪ Lokasi {loc_num} — (Kosong)"
 
-    col_tambah_p, col_kurang_p = st.columns(2)
-    with col_tambah_p:
-        if st.button("➕ Tambah Petugas", disabled=(st.session_state["num_petugas"] >= 6), use_container_width=True):
-            st.session_state["num_petugas"] += 1
-            st.rerun()
-    with col_kurang_p:
-        if st.button("➖ Kurangi Petugas", disabled=(st.session_state["num_petugas"] <= 1), use_container_width=True):
-            st.session_state["num_petugas"] -= 1
-            st.rerun()
+        pilihan_lokasi_1 = st.selectbox(
+            "Pilihan Titik Lokasi Pabrik 1 (Langsung pilih alamat yang sesuai)*",
+            options=list(range(1, 13)),
+            index=0,
+            format_func=fmt_lokasi_1,
+            key="sel_lok1"
+        )
+        
+        alamat_pabrik_1 = ""
+        if pt_1 and pt_1 in perusahaan_data:
+            alamat_pabrik_1 = perusahaan_data[pt_1].get(pilihan_lokasi_1, "").strip()
+            if alamat_pabrik_1:
+                st.markdown(f'<div class="info-pill">📍 <b>Alamat Lengkap Pabrik 1 (Titik {pilihan_lokasi_1}):</b><br>{alamat_pabrik_1}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="info-pill-warn">⚠️ Titik Lokasi {pilihan_lokasi_1} pada <b>{pt_1}</b> tidak memiliki alamat di database. Silakan pilih titik lokasi lain.</div>', unsafe_allow_html=True)
 
-    st.divider()
+        # OPSI PABRIK 2 (DINAMIS & RINGKAS)
+        tambah_pt2 = st.checkbox("➕ Tambah Pabrik Kedua (Jika 1 Surat Tugas mencakup 2 Pabrik)", value=False, key="chk_pt2")
+        
+        pt_2, no_surat_2, tgl_surat_2, permohonan_2, kegiatan_2, alamat_pabrik_2 = "", "", None, "", "", ""
+        pilihan_lokasi_2 = 1
+        if tambah_pt2:
+            st.divider()
+            st.markdown("**🏢 Pabrik 2 (Pemohon Kedua)**")
+            pt_2 = st.selectbox("Nama Perusahaan / Pabrik 2*", options=[""] + list_perusahaan, index=0, key="sel_pt2")
+            c_p2_1, c_p2_2 = st.columns([1.3, 1])
+            with c_p2_1:
+                no_surat_2 = st.text_input("Nomor Surat Pemohon 2*", placeholder="Nomor surat pabrik kedua", key="in_nosurat2")
+            with c_p2_2:
+                tgl_surat_2 = st.date_input("Tanggal Surat 2*", value=datetime.date.today(), key="in_tglsurat2")
+                
+            permohonan_2 = st.text_area(
+                "Perihal / Permohonan 2*",
+                key="in_permohonan_2",
+                placeholder="Permohonan pabrik kedua...",
+                on_change=on_permohonan_2_change,
+                height=68
+            )
+            kegiatan_2 = st.text_input(
+                "Kegiatan Baku 2 (Otomatis dari Permohonan 2, Bisa Diedit)*",
+                key="in_kegiatan_2"
+            )
+            
+            def fmt_lokasi_2(loc_num):
+                if not pt_2 or pt_2 not in perusahaan_data:
+                    return f"Titik Lokasi {loc_num}"
+                alm = perusahaan_data[pt_2].get(loc_num, "").strip()
+                if alm:
+                    short_alm = alm if len(alm) <= 68 else alm[:65] + "..."
+                    return f"📍 Lokasi {loc_num} — {short_alm}"
+                return f"⚪ Lokasi {loc_num} — (Kosong)"
+
+            pilihan_lokasi_2 = st.selectbox(
+                "Pilihan Titik Lokasi Pabrik 2*",
+                options=list(range(1, 13)),
+                index=0,
+                format_func=fmt_lokasi_2,
+                key="sel_lok2"
+            )
+            if pt_2 and pt_2 in perusahaan_data:
+                alamat_pabrik_2 = perusahaan_data[pt_2].get(pilihan_lokasi_2, "").strip()
+                if alamat_pabrik_2:
+                    st.markdown(f'<div class="info-pill">📍 <b>Alamat Lengkap Pabrik 2 (Titik {pilihan_lokasi_2}):</b><br>{alamat_pabrik_2}</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="info-pill-warn">⚠️ Titik Lokasi {pilihan_lokasi_2} pada <b>{pt_2}</b> kosong di database.</div>', unsafe_allow_html=True)
 
     # -------------------------------------------------------------
-    # 4. KONFIGURASI PENANDATANGAN
+    # KARTU 2: WAKTU PELAKSANAAN TUGAS
     # -------------------------------------------------------------
-    st.subheader("4. Konfigurasi Penandatangan Surat Tugas")
-    tipe_ttd = st.radio(
-        "Format Penandatangan:",
-        options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
-        index=0
-    )
-    is_plh = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False)
+    with st.container(border=True):
+        st.markdown('<div class="section-badge">2️⃣ Waktu Pelaksanaan Tugas</div>', unsafe_allow_html=True)
+        c_wkt1, c_wkt2 = st.columns([1.2, 1])
+        with c_wkt1:
+            tgl_pelaksanaan = st.date_input("Tanggal Pelaksanaan Tugas*", value=datetime.date.today(), key="in_tgl_pelaks")
+        with c_wkt2:
+            nama_hari_en = tgl_pelaksanaan.strftime("%A")
+            nama_hari_id = HARI_INDONESIA.get(nama_hari_en, nama_hari_en)
+            tgl_indo_str = format_tanggal_indo(tgl_pelaksanaan)
+            st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="info-pill" style="margin-top: 18px;">🗓️ <b>Hari & Tanggal Tercetak di ST:</b><br>{nama_hari_id} / {tgl_indo_str}</div>',
+                unsafe_allow_html=True
+            )
 
-    if tipe_ttd == "Kepala Kantor Langsung":
-        if is_plh:
-            st.info("Penandatangan: Plh. Kepala Kantor")
-            nama_pejabat_ttd = st.selectbox(
-                "Pilih Pejabat yang Ditunjuk sebagai Plh. Kepala Kantor*:",
-                options=[""] + list_pegawai,
+    # -------------------------------------------------------------
+    # KARTU 3: TIM PETUGAS PEMERIKSA (SUPER RINGKAS DI HP)
+    # -------------------------------------------------------------
+    with st.container(border=True):
+        st.markdown('<div class="section-badge">3️⃣ Tim Petugas Pemeriksa</div>', unsafe_allow_html=True)
+        st.caption("Pilih nama pegawai; Pangkat/Golongan dan Jabatan otomatis tampil dalam kartu ringkas di bawahnya.")
+
+        data_petugas_terpilih = []
+        
+        for i in range(1, st.session_state["num_petugas"] + 1):
+            sel_nama = st.selectbox(
+                f"👤 Nama Petugas {i}*",
+                options=["-- Pilih Pegawai --"] + list_pegawai,
+                index=0,
+                key=f"dyn_petugas_{i}"
+            )
+            
+            if sel_nama and sel_nama != "-- Pilih Pegawai --":
+                detail = pegawai_data.get(sel_nama, {})
+                p_nip = detail.get("nip", "-")
+                p_pangkat = detail.get("pangkat", "-")
+                p_jabatan = detail.get("jabatan", "-")
+                data_petugas_terpilih.append({
+                    "no": len(data_petugas_terpilih) + 1,
+                    "nama": sel_nama,
+                    "nip": p_nip,
+                    "pangkat": p_pangkat,
+                    "jabatan": p_jabatan
+                })
+                st.markdown(
+                    f'<div class="info-pill">🎖️ <b>{p_pangkat}</b> &nbsp;|&nbsp; 💼 {p_jabatan} &nbsp;|&nbsp; <span style="color:#64748b;">NIP: {p_nip}</span></div>',
+                    unsafe_allow_html=True
+                )
+
+        col_tambah_p, col_kurang_p = st.columns(2)
+        with col_tambah_p:
+            if st.button(f"➕ Tambah Petugas ({st.session_state['num_petugas']}/6)", disabled=(st.session_state["num_petugas"] >= 6), use_container_width=True):
+                st.session_state["num_petugas"] += 1
+                st.rerun()
+        with col_kurang_p:
+            if st.button("➖ Kurangi Petugas", disabled=(st.session_state["num_petugas"] <= 1), use_container_width=True):
+                st.session_state["num_petugas"] -= 1
+                st.rerun()
+
+    # -------------------------------------------------------------
+    # KARTU 4: KONFIGURASI PENANDATANGAN
+    # -------------------------------------------------------------
+    with st.container(border=True):
+        st.markdown('<div class="section-badge">4️⃣ Pejabat Penandatangan Surat Tugas</div>', unsafe_allow_html=True)
+        
+        c_ttd_left, c_ttd_right = st.columns([1.2, 1])
+        with c_ttd_left:
+            tipe_ttd = st.radio(
+                "Format Jabatan Penandatangan:",
+                options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
                 index=0
             )
-        else:
-            nama_pejabat_ttd = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores")
-    else:
-        if is_plh:
-            st.info("Penandatangan: a.n. Kepala Kantor ... Plh. Kepala Subbagian Umum")
-            nama_pejabat_ttd = st.selectbox(
-                "Pilih Pejabat yang Ditunjuk sebagai Plh. Kasubag Umum*:",
-                options=[""] + list_pegawai,
-                index=0
-            )
-        else:
-            nama_pejabat_ttd = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca")
+            is_plh = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False)
 
-    st.divider()
-    
+        with c_ttd_right:
+            if tipe_ttd == "Kepala Kantor Langsung":
+                if is_plh:
+                    nama_pejabat_ttd = st.selectbox(
+                        "Pilih Pejabat Plh. Kepala Kantor*:",
+                        options=[""] + list_pegawai,
+                        index=0
+                    )
+                    lbl_jab_ringkas = "Plh. Kepala Kantor KPPBC TMC Malang"
+                else:
+                    nama_pejabat_ttd = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores")
+                    lbl_jab_ringkas = "Kepala Kantor KPPBC TMC Malang"
+            else:
+                if is_plh:
+                    nama_pejabat_ttd = st.selectbox(
+                        "Pilih Pejabat Plh. Kasubag Umum*:",
+                        options=[""] + list_pegawai,
+                        index=0
+                    )
+                    lbl_jab_ringkas = "a.n. Kepala Kantor — Plh. Kepala Subbagian Umum"
+                else:
+                    nama_pejabat_ttd = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca")
+                    lbl_jab_ringkas = "a.n. Kepala Kantor — Kepala Subbagian Umum"
+            
+            st.markdown(
+                f'<div class="info-pill">✍️ <b> Format TTE:</b> {lbl_jab_ringkas}<br>👤 <b>Pejabat:</b> {nama_pejabat_ttd or "(Belum dipilih)"}</div>',
+                unsafe_allow_html=True
+            )
+
     # -------------------------------------------------------------
     # TOMBOL AKSI UTAMA INPUT BARU
     # -------------------------------------------------------------
-    btn_simpan_eksekusi = st.button("💾 Simpan ke Database Spreadsheet", type="primary", use_container_width=True)
+    btn_simpan_eksekusi = st.button(
+        f"💾 Simpan ke Database Spreadsheet (No. Urut #{next_no_preview}) & Siapkan Dokumen Word",
+        type="primary",
+        use_container_width=True
+    )
 
     if btn_simpan_eksekusi:
         if not pt_1:
-            st.error("Nama Perusahaan / Pabrik 1 wajib dipilih!")
-        elif not no_surat_1:
-            st.error("Nomor Surat Pemohon 1 wajib diisi!")
+            st.error("⚠️ Nama Perusahaan / Pabrik 1 wajib dipilih!")
+        elif not no_surat_1.strip():
+            st.error("⚠️ Nomor Surat Pemohon 1 wajib diisi!")
         elif len(data_petugas_terpilih) == 0:
-            st.error("Minimal harus memilih Petugas 1!")
+            st.error("⚠️ Minimal harus memilih 1 Petugas Pemeriksa!")
         elif not nama_pejabat_ttd.strip():
-            st.error("Nama Pejabat Penandatangan tidak boleh kosong!")
+            st.error("⚠️ Nama Pejabat Penandatangan tidak boleh kosong!")
         else:
             try:
-                with st.spinner("Menyimpan ke Google Sheets..."):
+                with st.spinner("Menyimpan ke Google Sheets & merakit dokumen Word..."):
                     ss = get_spreadsheet()
-                    ws_target = ss.worksheet("Sheet1")
+                    ws_target = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
                     
                     col_no = ws_target.col_values(1)
                     existing_numbers = [int(x) for x in col_no if x.strip().isdigit()]
@@ -849,12 +1127,12 @@ with tab_input:
                         format_tanggal_indo(tgl_surat_1),
                         pt_2 if pt_2 else "",
                         no_surat_2 if no_surat_2 else "",
-                        format_tanggal_indo(tgl_surat_2) if tgl_surat_2 else "",
+                        format_tanggal_indo(tgl_surat_2) if (pt_2 and tgl_surat_2) else "",
                         permohonan_1,
-                        permohonan_2 if permohonan_2 else "",
+                        permohonan_2 if pt_2 else "",
                         *petugas_row_data,
                         kegiatan_1,
-                        kegiatan_2 if kegiatan_2 else "",
+                        kegiatan_2 if pt_2 else "",
                         nama_hari_id,
                         format_tanggal_indo(tgl_pelaksanaan),
                         pilihan_lokasi_1,
@@ -866,7 +1144,8 @@ with tab_input:
                     ]
 
                     ws_target.append_row(row_payload, value_input_option="USER_ENTERED")
-                    st.success(f"Berhasil menyimpan Surat Tugas No. Urut {next_no} ke Database Spreadsheet!")
+                    st.toast(f"Surat Tugas No. {next_no} berhasil disimpan!", icon="🎉")
+                    st.success(f"✅ Berhasil menyimpan **Surat Tugas No. Urut #{next_no}** ({pt_1}) ke Database Spreadsheet!")
                     st.cache_data.clear()
                     
                     st.session_state["last_submitted_data"] = {
@@ -874,17 +1153,17 @@ with tab_input:
                         "pt_1": pt_1,
                         "no_surat_1": no_surat_1,
                         "tgl_surat_1": format_tanggal_indo(tgl_surat_1),
-                        "pt_2": pt_2,
-                        "no_surat_2": no_surat_2,
-                        "tgl_surat_2": format_tanggal_indo(tgl_surat_2) if tgl_surat_2 else "",
+                        "pt_2": pt_2 if pt_2 else "",
+                        "no_surat_2": no_surat_2 if pt_2 else "",
+                        "tgl_surat_2": format_tanggal_indo(tgl_surat_2) if (pt_2 and tgl_surat_2) else "",
                         "permohonan_1": permohonan_1,
-                        "permohonan_2": permohonan_2,
+                        "permohonan_2": permohonan_2 if pt_2 else "",
                         "kegiatan_1": kegiatan_1,
-                        "kegiatan_2": kegiatan_2,
+                        "kegiatan_2": kegiatan_2 if pt_2 else "",
                         "hari": nama_hari_id,
                         "tgl_pelaksanaan": format_tanggal_indo(tgl_pelaksanaan),
                         "alamat_pabrik_1": alamat_pabrik_1,
-                        "alamat_pabrik_2": alamat_pabrik_2,
+                        "alamat_pabrik_2": alamat_pabrik_2 if pt_2 else "",
                         "daftar_petugas": data_petugas_terpilih,
                         "tipe_ttd": tipe_ttd,
                         "is_plh": is_plh,
@@ -893,47 +1172,87 @@ with tab_input:
             except Exception as err:
                 st.error(f"Gagal menyimpan ke Google Sheets: {err}")
 
-    # Unduh Langsung & Pratinjau Opsional untuk Input Baru (Super Cepat di HP)
+    # Kartu Unduh Langsung & Pratinjau Opsional (Super Cepat di HP)
     if "last_submitted_data" in st.session_state:
         data_gen = st.session_state["last_submitted_data"]
-        st.divider()
-        st.subheader("📄 Dokumen Siap Diunduh")
-        
-        try:
-            buf = generate_docx_buffer(data_gen)
-            file_name_out = f"ST_{data_gen['pt_1'].replace(' ', '_')}_{data_gen['tgl_pelaksanaan'].replace(' ', '_')}.docx"
-            st.download_button(
-                label="📥 Unduh Surat Tugas (.docx)",
-                data=buf,
-                file_name=file_name_out,
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                type="primary",
-                use_container_width=True,
-                key="btn_dl_new"
-            )
-        except Exception as e_dl:
-            st.error(f"Gagal membuat file Word: {e_dl}")
+        with st.container(border=True):
+            st.markdown(f'<div class="section-badge">📄 Dokumen Siap Diunduh — ST No. #{data_gen["no_urut"]} ({data_gen["pt_1"]})</div>', unsafe_allow_html=True)
+            
+            try:
+                buf = generate_docx_buffer(data_gen)
+                file_name_out = f"ST_{data_gen['no_urut']}_{data_gen['pt_1'].replace(' ', '_')}_{data_gen['tgl_pelaksanaan'].replace(' ', '_')}.docx"
+                col_dl1, col_dl2 = st.columns([2, 1])
+                with col_dl1:
+                    st.download_button(
+                        label=f"📥 Unduh Surat Tugas (.docx) — {file_name_out}",
+                        data=buf,
+                        file_name=file_name_out,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        type="primary",
+                        use_container_width=True,
+                        key="btn_dl_new"
+                    )
+                with col_dl2:
+                    if st.button("✨ Buat ST Baru Lagi (Reset)", use_container_width=True, key="btn_reset_after_dl"):
+                        reset_form_input()
+                        st.rerun()
+            except Exception as e_dl:
+                st.error(f"Gagal membuat file Word: {e_dl}")
 
-        with st.expander("👁️ Intip Pratinjau Dokumen (Opsional)", expanded=False):
-            components.html(render_preview_html(data_gen), height=850, scrolling=True)
+            with st.expander("👁️ Intip Pratinjau Kertas A4 (Opsional)", expanded=False):
+                components.html(render_preview_html(data_gen), height=850, scrolling=True)
 
 # ==========================================
-# TAB 2: RIWAYAT, EDIT, HAPUS & CETAK ULANG
+# TAB 2: MANAJEMEN DATA (RIWAYAT, CETAK ULANG, EDIT & HAPUS)
 # ==========================================
 with tab_riwayat:
-    st.subheader("🕒 Manajemen Data Surat Tugas (Cetak Ulang, Edit & Hapus)")
-    st.caption("Pilih penugasan dari database yang pernah direkam untuk mencetak ulang, mengedit data yang salah, atau menghapus data.")
-    
-    riwayat_list = load_riwayat_data()
-    
-    if not riwayat_list:
-        st.info("Belum ada riwayat surat tugas di database Sheet1 atau data sedang dimuat.")
-    else:
-        label_options = [item["label"] for item in riwayat_list]
-        selected_label = st.selectbox("Cari & Pilih Surat Tugas:", options=label_options, index=0)
-        selected_item = next(item for item in riwayat_list if item["label"] == selected_label)
+    with st.container(border=True):
+        st.markdown('<div class="section-badge">🔍 Cari & Pilih Riwayat Surat Tugas</div>', unsafe_allow_html=True)
         
-        # 3 Sub-Fitur Interaktif
+        riwayat_list = riwayat_list_global
+        if not riwayat_list:
+            st.info("Belum ada riwayat surat tugas di database Sheet1 atau data sedang dimuat.")
+        else:
+            # Fitur Filter Cepat Kata Kunci agar mudah mencari di antara ratusan ST
+            kata_kunci = st.text_input(
+                "Filter Cepat (Ketik Nama Pabrik / Nama Petugas / Tanggal / Nomor ST):",
+                placeholder="Contoh: Gudang Baru atau Kukuh atau Oktober...",
+                key="filter_riwayat_kw"
+            ).strip().lower()
+
+            filtered_riwayat = [
+                item for item in riwayat_list
+                if not kata_kunci
+                or kata_kunci in item["label"].lower()
+                or kata_kunci in item["kegiatan_1"].lower()
+                or kata_kunci in item["no_surat_1"].lower()
+            ]
+
+            if not filtered_riwayat:
+                st.warning(f"Tidak ditemukan Surat Tugas yang cocok dengan kata kunci '{kata_kunci}'.")
+                selected_item = None
+            else:
+                label_options = [item["label"] for item in filtered_riwayat]
+                selected_label = st.selectbox(
+                    f"Pilih Surat Tugas ({len(filtered_riwayat)} data ditampilkan):",
+                    options=label_options,
+                    index=0
+                )
+                selected_item = next(item for item in filtered_riwayat if item["label"] == selected_label)
+
+    if riwayat_list and selected_item:
+        # Ringkasan Eksekutif Data Terpilih
+        petugas_str = ", ".join([f"{p['nama']} ({p['pangkat']})" for p in selected_item["daftar_petugas"]]) or "-"
+        info_pt2 = f"<br>🏢 <b>Pabrik 2:</b> {selected_item['pt_2']} (No: {selected_item['no_surat_2']})" if selected_item["pt_2"] else ""
+        st.markdown(f"""
+        <div class="info-pill" style="background:#f0f5fa; border-left: 4px solid #0f2942; padding: 10px 14px;">
+            📌 <b>Ringkasan ST No. #{selected_item['no_urut']}</b> (Baris Spreadsheet: {selected_item['row_num']})<br>
+            🏢 <b>Pabrik 1:</b> {selected_item['pt_1']} &nbsp;|&nbsp; 📄 <b>No. Surat:</b> {selected_item['no_surat_1']} ({selected_item['tgl_surat_1']}){info_pt2}<br>
+            🛠️ <b>Kegiatan:</b> {selected_item['kegiatan_1']} &nbsp;|&nbsp; 🗓️ <b>Waktu:</b> {selected_item['hari']}, {selected_item['tgl_pelaksanaan']}<br>
+            👮 <b>Tim Petugas ({len(selected_item['daftar_petugas'])} orang):</b> {petugas_str}
+        </div>
+        """, unsafe_allow_html=True)
+
         subtab_cetak, subtab_edit, subtab_hapus = st.tabs([
             "📥 Cetak Ulang Dokumen", 
             "✏️ Edit Data Penugasan", 
@@ -944,165 +1263,172 @@ with tab_riwayat:
         # SUB-TAB A: CETAK ULANG
         # -------------------------------------------------------------
         with subtab_cetak:
-            st.markdown("**Pengaturan Penandatangan untuk Cetak Ulang:**")
-            col_r_ttd1, col_r_ttd2 = st.columns(2)
-            
-            with col_r_ttd1:
-                tipe_ttd_r = st.radio(
-                    "Format Penandatangan:",
-                    options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
-                    index=0,
-                    key="r_tipe_ttd"
-                )
-                is_plh_r = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False, key="r_is_plh")
+            with st.container(border=True):
+                st.markdown("**Pengaturan Penandatangan untuk Cetak Ulang:**")
+                col_r_ttd1, col_r_ttd2 = st.columns(2)
+                
+                with col_r_ttd1:
+                    tipe_ttd_r = st.radio(
+                        "Format Penandatangan:",
+                        options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
+                        index=0,
+                        key="r_tipe_ttd"
+                    )
+                    is_plh_r = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False, key="r_is_plh")
 
-            with col_r_ttd2:
-                if tipe_ttd_r == "Kepala Kantor Langsung":
-                    if is_plh_r:
-                        nama_ttd_r = st.selectbox(
-                            "Pilih Pejabat Plh. Kepala Kantor*:",
-                            options=[""] + list_pegawai,
-                            index=0,
-                            key="r_plh_kk"
-                        )
+                with col_r_ttd2:
+                    if tipe_ttd_r == "Kepala Kantor Langsung":
+                        if is_plh_r:
+                            nama_ttd_r = st.selectbox(
+                                "Pilih Pejabat Plh. Kepala Kantor*:",
+                                options=[""] + list_pegawai,
+                                index=0,
+                                key="r_plh_kk"
+                            )
+                        else:
+                            nama_ttd_r = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores", key="r_def_kk")
                     else:
-                        nama_ttd_r = st.text_input("Nama Kepala Kantor Definitif:", value="Johan Pandores", key="r_def_kk")
-                else:
-                    if is_plh_r:
-                        nama_ttd_r = st.selectbox(
-                            "Pilih Pejabat Plh. Kasubag Umum*:",
-                            options=[""] + list_pegawai,
-                            index=0,
-                            key="r_plh_subag"
-                        )
-                    else:
-                        nama_ttd_r = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca", key="r_def_subag")
+                        if is_plh_r:
+                            nama_ttd_r = st.selectbox(
+                                "Pilih Pejabat Plh. Kasubag Umum*:",
+                                options=[""] + list_pegawai,
+                                index=0,
+                                key="r_plh_subag"
+                            )
+                        else:
+                            nama_ttd_r = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca", key="r_def_subag")
 
-            data_cetak_ulang = dict(selected_item)
-            data_cetak_ulang["tipe_ttd"] = tipe_ttd_r
-            data_cetak_ulang["is_plh"] = is_plh_r
-            data_cetak_ulang["nama_pejabat_ttd"] = nama_ttd_r if nama_ttd_r.strip() else "Kukuh Hanna Prapanca"
+                data_cetak_ulang = dict(selected_item)
+                data_cetak_ulang["tipe_ttd"] = tipe_ttd_r
+                data_cetak_ulang["is_plh"] = is_plh_r
+                data_cetak_ulang["nama_pejabat_ttd"] = nama_ttd_r if nama_ttd_r.strip() else "Kukuh Hanna Prapanca"
 
-            with st.expander("👁️ Pratinjau Dokumen Cetak Ulang (Klik untuk Buka/Tutup)", expanded=True):
-                components.html(render_preview_html(data_cetak_ulang), height=850, scrolling=True)
+                try:
+                    buf_r = generate_docx_buffer(data_cetak_ulang)
+                    file_name_r = f"Cetak_Ulang_ST_{data_cetak_ulang['no_urut']}_{data_cetak_ulang['pt_1'].replace(' ', '_')}.docx"
+                    st.download_button(
+                        label=f"📥 Unduh Ulang Surat Tugas (.docx) — No. #{data_cetak_ulang['no_urut']}",
+                        data=buf_r,
+                        file_name=file_name_r,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        type="primary",
+                        use_container_width=True,
+                        key="btn_dl_reprint"
+                    )
+                except Exception as e_r:
+                    st.error(f"Gagal menyiapkan dokumen cetak ulang: {e_r}")
 
-            try:
-                buf_r = generate_docx_buffer(data_cetak_ulang)
-                file_name_r = f"Cetak_Ulang_ST_{data_cetak_ulang['no_urut']}_{data_cetak_ulang['pt_1'].replace(' ', '_')}.docx"
-                st.download_button(
-                    label="📥 Unduh Ulang Surat Tugas (.docx)",
-                    data=buf_r,
-                    file_name=file_name_r,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    type="primary",
-                    key="btn_dl_reprint"
-                )
-            except Exception as e_r:
-                st.error(f"Gagal menyiapkan dokumen cetak ulang: {e_r}")
+                with st.expander("👁️ Pratinjau Dokumen Cetak Ulang (Klik untuk Buka/Tutup)", expanded=True):
+                    components.html(render_preview_html(data_cetak_ulang), height=850, scrolling=True)
 
         # -------------------------------------------------------------
-        # SUB-TAB B: EDIT DATA YANG SUDAH TERINPUT
+        # SUB-TAB B: EDIT DATA YANG SUDAH TERINPUT (MENDUKUNG S.D. 6 PETUGAS)
         # -------------------------------------------------------------
         with subtab_edit:
-            st.markdown(f"**Edit Data Surat Tugas No. {selected_item['no_urut']} (Baris Spreadsheet: {selected_item['row_num']})**")
-            st.caption("Perubahan akan langsung memperbarui database Google Sheets secara real-time.")
-            
-            with st.form(f"form_edit_{selected_item['no_urut']}", clear_on_submit=False):
-                col_e1, col_e2 = st.columns(2)
-                with col_e1:
-                    idx_pt1 = list_perusahaan.index(selected_item["pt_1"]) if selected_item["pt_1"] in list_perusahaan else 0
-                    edit_pt1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=list_perusahaan, index=idx_pt1)
-                    edit_no_surat1 = st.text_input("Nomor Surat Pemohon 1*", value=selected_item["no_surat_1"])
-                    edit_permohonan1 = st.text_area("Perihal / Permohonan 1*", value=selected_item["permohonan_1"], height=75)
-                    edit_kegiatan1 = st.text_input("Kegiatan Baku 1*", value=selected_item["kegiatan_1"])
-                    edit_alamat1 = st.text_area("Alamat Pabrik 1", value=selected_item["alamat_pabrik_1"], height=65)
+            with st.container(border=True):
+                st.markdown(f"**✏️ Edit Data Surat Tugas No. #{selected_item['no_urut']} (Baris Spreadsheet: {selected_item['row_num']})**")
+                st.caption("Perubahan akan langsung memperbarui baris terkait di database Google Sheets secara real-time.")
                 
-                with col_e2:
-                    edit_hari = st.text_input("Hari Pelaksanaan*", value=selected_item["hari"])
-                    edit_tgl_pelaks = st.text_input("Tanggal Pelaksanaan Tugas*", value=selected_item["tgl_pelaksanaan"])
+                with st.form(f"form_edit_{selected_item['no_urut']}", clear_on_submit=False):
+                    col_e1, col_e2 = st.columns(2)
+                    with col_e1:
+                        idx_pt1 = list_perusahaan.index(selected_item["pt_1"]) if selected_item["pt_1"] in list_perusahaan else 0
+                        edit_pt1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=list_perusahaan, index=idx_pt1)
+                        edit_no_surat1 = st.text_input("Nomor Surat Pemohon 1*", value=selected_item["no_surat_1"])
+                        edit_tgl_surat1 = st.text_input("Tanggal Surat 1*", value=selected_item["tgl_surat_1"])
+                        edit_permohonan1 = st.text_area("Perihal / Permohonan 1*", value=selected_item["permohonan_1"], height=68)
+                        edit_kegiatan1 = st.text_input("Kegiatan Baku 1*", value=selected_item["kegiatan_1"])
+                        edit_alamat1 = st.text_area("Alamat Pabrik 1*", value=selected_item["alamat_pabrik_1"], height=65)
                     
-                    st.markdown("**Petugas yang Ditugaskan:**")
-                    cur_p = selected_item["daftar_petugas"]
-                    edit_petugas_list = []
-                    for p_i in range(1, 4):
-                        default_nama = cur_p[p_i-1]["nama"] if len(cur_p) >= p_i else "-- Kosong --"
-                        opts = ["-- Kosong --"] + list_pegawai
-                        idx_sel = opts.index(default_nama) if default_nama in opts else 0
-                        p_nama_edit = st.selectbox(f"Petugas {p_i}:", options=opts, index=idx_sel, key=f"edit_p_{p_i}")
-                        if p_nama_edit and p_nama_edit != "-- Kosong --":
-                            dtl = pegawai_data.get(p_nama_edit, {})
-                            edit_petugas_list.append({
-                                "nama": p_nama_edit,
-                                "pangkat": dtl.get("pangkat", ""),
-                                "jabatan": dtl.get("jabatan", "")
-                            })
-
-                btn_simpan_edit = st.form_submit_button("💾 Simpan Perubahan ke Google Sheets", type="primary", use_container_width=True)
-
-            if btn_simpan_edit:
-                try:
-                    with st.spinner("Memperbarui baris di Google Sheets..."):
-                        ss = get_spreadsheet()
-                        ws = ss.worksheet("Sheet1")
-                        r_num = selected_item["row_num"]
+                    with col_e2:
+                        edit_hari = st.text_input("Hari Pelaksanaan*", value=selected_item["hari"])
+                        edit_tgl_pelaks = st.text_input("Tanggal Pelaksanaan Tugas*", value=selected_item["tgl_pelaksanaan"])
                         
-                        pad_p = []
-                        for pi in range(6):
-                            if pi < len(edit_petugas_list):
-                                pad_p.extend([edit_petugas_list[pi]["nama"], edit_petugas_list[pi]["pangkat"], edit_petugas_list[pi]["jabatan"]])
-                            else:
-                                pad_p.extend(["", "", ""])
-                                
-                        row_update = [
-                            selected_item["no_urut"],
-                            edit_pt1,
-                            edit_no_surat1,
-                            selected_item["tgl_surat_1"],
-                            selected_item["pt_2"],
-                            selected_item["no_surat_2"],
-                            selected_item["tgl_surat_2"],
-                            edit_permohonan1,
-                            selected_item["permohonan_2"],
-                            *pad_p,
-                            edit_kegiatan1,
-                            selected_item["kegiatan_2"],
-                            edit_hari,
-                            edit_tgl_pelaks,
-                            "1",
-                            edit_alamat1,
-                            "",
-                            selected_item["alamat_pabrik_2"],
-                            "",
-                            ""
-                        ]
-                        
-                        ws.update(f"A{r_num}:AK{r_num}", [row_update], value_input_option="USER_ENTERED")
-                        st.success(f"Berhasil memperbarui data Surat Tugas No. {selected_item['no_urut']} di baris {r_num}!")
-                        st.cache_data.clear()
-                        st.rerun()
-                except Exception as err_edit:
-                    st.error(f"Gagal memperbarui Google Sheets: {err_edit}")
+                        st.markdown("**👮 Tim Petugas yang Ditugaskan (1 - 6):**")
+                        cur_p = selected_item["daftar_petugas"]
+                        edit_petugas_list = []
+                        for p_i in range(1, 7):
+                            default_nama = cur_p[p_i-1]["nama"] if len(cur_p) >= p_i else "-- Kosong --"
+                            opts = ["-- Kosong --"] + list_pegawai
+                            idx_sel = opts.index(default_nama) if default_nama in opts else 0
+                            p_nama_edit = st.selectbox(f"Petugas {p_i}:", options=opts, index=idx_sel, key=f"edit_p_{selected_item['no_urut']}_{p_i}")
+                            if p_nama_edit and p_nama_edit != "-- Kosong --":
+                                dtl = pegawai_data.get(p_nama_edit, {})
+                                edit_petugas_list.append({
+                                    "nama": p_nama_edit,
+                                    "pangkat": dtl.get("pangkat", ""),
+                                    "jabatan": dtl.get("jabatan", "")
+                                })
+
+                    btn_simpan_edit = st.form_submit_button("💾 Simpan Perubahan ke Google Sheets", type="primary", use_container_width=True)
+
+                if btn_simpan_edit:
+                    try:
+                        with st.spinner("Memperbarui baris di Google Sheets..."):
+                            ss = get_spreadsheet()
+                            ws = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
+                            r_num = selected_item["row_num"]
+                            
+                            pad_p = []
+                            for pi in range(6):
+                                if pi < len(edit_petugas_list):
+                                    pad_p.extend([edit_petugas_list[pi]["nama"], edit_petugas_list[pi]["pangkat"], edit_petugas_list[pi]["jabatan"]])
+                                else:
+                                    pad_p.extend(["", "", ""])
+                                    
+                            row_update = [
+                                selected_item["no_urut"],
+                                edit_pt1,
+                                edit_no_surat1,
+                                edit_tgl_surat1,
+                                selected_item["pt_2"],
+                                selected_item["no_surat_2"],
+                                selected_item["tgl_surat_2"],
+                                edit_permohonan1,
+                                selected_item["permohonan_2"],
+                                *pad_p,
+                                edit_kegiatan1,
+                                selected_item["kegiatan_2"],
+                                edit_hari,
+                                edit_tgl_pelaks,
+                                selected_item.get("lokasi_idx_1", "1"),
+                                edit_alamat1,
+                                selected_item.get("lokasi_idx_2", "") if selected_item["pt_2"] else "",
+                                selected_item["alamat_pabrik_2"],
+                                "",
+                                ""
+                            ]
+                            
+                            ws.update(f"A{r_num}:AK{r_num}", [row_update], value_input_option="USER_ENTERED")
+                            st.toast(f"ST No. #{selected_item['no_urut']} berhasil diperbarui!", icon="✅")
+                            st.success(f"Berhasil memperbarui data Surat Tugas No. {selected_item['no_urut']} di baris {r_num}!")
+                            st.cache_data.clear()
+                            st.rerun()
+                    except Exception as err_edit:
+                        st.error(f"Gagal memperbarui Google Sheets: {err_edit}")
 
         # -------------------------------------------------------------
         # SUB-TAB C: HAPUS DARI DATABASE
         # -------------------------------------------------------------
         with subtab_hapus:
-            st.warning(f"⚠️ **Tindakan Penghapusan:** Data Surat Tugas **No. {selected_item['no_urut']} ({selected_item['pt_1']})** pada baris ke-{selected_item['row_num']} spreadsheet akan dihapus secara permanen.")
-            
-            cek_konfirm = st.checkbox(
-                f"Saya yakin dan bertanggung jawab ingin menghapus Surat Tugas No. {selected_item['no_urut']} dari database.",
-                value=False,
-                key=f"del_chk_{selected_item['no_urut']}"
-            )
-            
-            if st.button("🗑️ Hapus Baris Ini Sekarang", disabled=not cek_konfirm, type="primary", use_container_width=True):
-                try:
-                    with st.spinner("Menghapus baris dari Google Sheets..."):
-                        ss = get_spreadsheet()
-                        ws = ss.worksheet("Sheet1")
-                        ws.delete_rows(selected_item["row_num"])
-                        st.success(f"Berhasil menghapus Surat Tugas No. {selected_item['no_urut']} dari Google Sheets!")
-                        st.cache_data.clear()
-                        st.rerun()
-                except Exception as err_del:
-                    st.error(f"Gagal menghapus baris dari Google Sheets: {err_del}")
+            with st.container(border=True):
+                st.warning(f"⚠️ **Tindakan Penghapusan Permanen:** Data Surat Tugas **No. #{selected_item['no_urut']} ({selected_item['pt_1']})** pada baris ke-{selected_item['row_num']} spreadsheet akan dihapus secara permanen dari Google Sheets.")
+                
+                cek_konfirm = st.checkbox(
+                    f"Saya yakin ingin menghapus Surat Tugas No. #{selected_item['no_urut']} dari database.",
+                    value=False,
+                    key=f"del_chk_{selected_item['no_urut']}"
+                )
+                
+                if st.button("🗑️ Hapus Baris Ini Sekarang", disabled=not cek_konfirm, type="primary", use_container_width=True):
+                    try:
+                        with st.spinner("Menghapus baris dari Google Sheets..."):
+                            ss = get_spreadsheet()
+                            ws = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
+                            ws.delete_rows(selected_item["row_num"])
+                            st.toast(f"ST No. #{selected_item['no_urut']} telah dihapus!", icon="🗑️")
+                            st.success(f"Berhasil menghapus Surat Tugas No. {selected_item['no_urut']} dari Google Sheets!")
+                            st.cache_data.clear()
+                            st.rerun()
+                    except Exception as err_del:
+                        st.error(f"Gagal menghapus baris dari Google Sheets: {err_del}")
