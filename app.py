@@ -23,136 +23,262 @@ st.set_page_config(
 )
 
 # ==========================================
-# ARSITEKTUR UI/UX: CUSTOM CSS RINGAN (ZERO-JS)
+# ARSITEKTUR UI/UX: BENTO GRID + SOFT GLASSMORPHISM + MINIMALIST EDITORIAL
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. Optimasi Ruang Layar (Mobile & Desktop) */
-    .block-container {
-        padding-top: 1.5rem !important;
-        padding-bottom: 2.5rem !important;
-        max-width: 1120px !important;
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+    /* 1. Palet Warna Utama & Tipografi Editorial */
+    html, body, [class*="css"], .stApp {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        background-color: #F4F7FB !important;
+        color: #0F172A;
     }
-    
-    /* 2. Banner Header Instansi Profesional (Kemenkeu / Bea Cukai Theme) */
+
+    .block-container {
+        padding-top: 1.25rem !important;
+        padding-bottom: 3rem !important;
+        max-width: 1140px !important;
+    }
+
+    /* 2. Arsitektur Bento Grid Sejati via Native Container */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: #FFFFFF !important;
+        border-radius: 18px !important;
+        border: 1px solid rgba(226, 232, 240, 0.95) !important;
+        box-shadow: 0 6px 24px -4px rgba(15, 23, 42, 0.05) !important;
+        padding: 20px !important;
+        margin-bottom: 0.85rem !important;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    /* 3. Header Instansi & Metric Bento Strip (Soft Glassmorphism) */
     .bc-header-card {
-        background: linear-gradient(135deg, #0f2942 0%, #1b4368 100%);
-        color: #ffffff;
-        padding: 1.15rem 1.4rem;
-        border-radius: 12px;
-        border-left: 6px solid #d4af37;
-        box-shadow: 0 4px 14px rgba(15, 41, 66, 0.12);
-        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%);
+        color: #FFFFFF;
+        padding: 1.35rem 1.5rem;
+        border-radius: 20px;
+        border-left: 6px solid #F59E0B;
+        border-bottom: 2px solid rgba(245, 158, 11, 0.45);
+        box-shadow: 0 12px 28px -6px rgba(10, 25, 47, 0.22);
+        margin-bottom: 0.9rem;
+        position: relative;
+        overflow: hidden;
     }
     .bc-header-title {
-        font-size: 1.3rem;
-        font-weight: 700;
+        font-size: 1.35rem;
+        font-weight: 800;
         margin: 0;
-        letter-spacing: 0.2px;
-        color: #ffffff !important;
+        letter-spacing: -0.2px;
+        color: #FFFFFF !important;
         line-height: 1.3;
     }
     .bc-header-sub {
-        font-size: 0.84rem;
-        color: #dbe7f3;
-        margin-top: 0.25rem;
+        font-size: 0.86rem;
+        color: #DBEAFE;
+        margin-top: 0.3rem;
         margin-bottom: 0;
+        font-weight: 500;
     }
-    
-    /* 3. Indikator Status Cepat (Quick Metrics Strip) */
     .metric-strip {
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 0.75rem;
+        margin-top: 0.9rem;
     }
     .metric-pill {
-        background: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.12);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.22);
-        color: #ffffff;
-        padding: 4px 11px;
+        color: #FFFFFF;
+        padding: 5px 13px;
         border-radius: 999px;
-        font-size: 0.76rem;
-        font-weight: 500;
+        font-size: 0.78rem;
+        font-weight: 600;
+        letter-spacing: 0.1px;
     }
     .metric-pill b {
-        color: #ffd966;
+        color: #FBBF24;
+        font-weight: 800;
     }
 
-    /* 4. Header Seksi di Dalam Kartu */
+    /* 4. Header Seksi Bento di Dalam Kartu */
     .section-badge {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        background-color: #f0f5fa;
-        color: #0f2942;
-        padding: 5px 12px;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.92rem;
-        border-left: 4px solid #0f2942;
-        margin-bottom: 0.65rem;
+        background: linear-gradient(90deg, #EFF6FF 0%, #F8FAFC 100%);
+        color: #0A192F;
+        padding: 6px 14px;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 0.93rem;
+        border-left: 4px solid #1E3A8A;
+        margin-bottom: 0.75rem;
+        letter-spacing: -0.1px;
     }
 
-    /* 5. Pill Ringkas Detail Pegawai & Lokasi (Hemat Ruang Vertikal HP) */
+    /* 5. Bento Mini-Cards & Info Pills (Pegawai, Lokasi, Status) */
     .info-pill {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-left: 3.5px solid #1b4368;
-        padding: 7px 11px;
-        border-radius: 6px;
-        font-size: 0.82rem;
-        color: #334155;
-        margin-top: -4px;
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-left: 4px solid #1E3A8A;
+        padding: 9px 13px;
+        border-radius: 10px;
+        font-size: 0.84rem;
+        color: #1E293B;
+        margin-top: 2px;
         margin-bottom: 10px;
-        line-height: 1.4;
+        line-height: 1.45;
     }
     .info-pill-warn {
-        background-color: #fffbeb;
-        border: 1px solid #fde68a;
-        border-left: 3.5px solid #d97706;
-        padding: 7px 11px;
-        border-radius: 6px;
-        font-size: 0.82rem;
-        color: #92400e;
-        margin-top: -4px;
+        background-color: #FFFBEB;
+        border: 1px solid #FDE68A;
+        border-left: 4px solid #F59E0B;
+        padding: 9px 13px;
+        border-radius: 10px;
+        font-size: 0.84rem;
+        color: #92400E;
+        margin-top: 2px;
         margin-bottom: 10px;
+        line-height: 1.45;
     }
     .info-pill-ok {
-        background-color: #f0fdf4;
-        border: 1px solid #bbf7d0;
-        border-left: 3.5px solid #16a34a;
-        padding: 7px 11px;
-        border-radius: 6px;
-        font-size: 0.82rem;
-        color: #166534;
-        margin-top: -4px;
+        background-color: #ECFDF5;
+        border: 1px solid #A7F3D0;
+        border-left: 4px solid #10B981;
+        padding: 9px 13px;
+        border-radius: 10px;
+        font-size: 0.84rem;
+        color: #065F46;
+        margin-top: 2px;
         margin-bottom: 10px;
+        line-height: 1.45;
+    }
+    .petugas-bento-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 10px;
+        margin-top: 8px;
+        margin-bottom: 6px;
+    }
+    .petugas-bento-card {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-left: 4px solid #F59E0B;
+        border-radius: 12px;
+        padding: 9px 12px;
+        font-size: 0.82rem;
+        line-height: 1.4;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    }
+    .petugas-bento-card .p-title {
+        font-weight: 700;
+        color: #0A192F;
+        font-size: 0.87rem;
+        margin-bottom: 2px;
+    }
+    .petugas-bento-card .p-sub {
+        color: #475569;
+        font-size: 0.78rem;
     }
 
-    /* 6. Ergonomi Tombol Sentuh (Touch Target >= 44px untuk HP) */
-    div.stButton > button, div.stDownloadButton > button {
-        min-height: 44px;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        transition: all 0.15s ease-in-out;
+    /* 6. Ergonomi Mobile-First (Anti Auto-Zoom iOS/Android & Nyaman untuk Jempol) */
+    input, textarea, div[data-baseweb="select"], div[data-baseweb="input"], div[data-baseweb="textarea"] {
+        font-size: 16px !important;
+        border-radius: 12px !important;
     }
-    
-    /* 7. Styling Tab Navigasi Lebih Tegas */
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="input"] > div {
+        min-height: 48px !important;
+        border-radius: 12px !important;
+    }
+    textarea {
+        min-height: 76px !important;
+        border-radius: 12px !important;
+    }
+
+    /* 7. Segmented Pill Control untuk Tab Navigasi (Swipeable di HP) */
+    div[data-baseweb="tab-list"] {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        white-space: nowrap !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+        gap: 8px !important;
+        background: #E2E8F0 !important;
+        padding: 6px !important;
+        border-radius: 14px !important;
+        margin-bottom: 1rem !important;
+    }
+    div[data-baseweb="tab-list"]::-webkit-scrollbar {
+        display: none !important;
+    }
     button[data-baseweb="tab"] {
-        font-weight: 600 !important;
-        font-size: 0.92rem !important;
-        padding: 10px 16px !important;
+        font-weight: 700 !important;
+        font-size: 0.9rem !important;
+        padding: 10px 18px !important;
+        border-radius: 10px !important;
+        border: none !important;
+        background: transparent !important;
+        color: #475569 !important;
+        transition: all 0.18s ease !important;
+        min-height: 44px !important;
     }
-    
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background: #FFFFFF !important;
+        color: #0A192F !important;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08) !important;
+    }
+    div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {
+        display: none !important;
+    }
+
+    /* 8. Tombol Standar & Tombol Eksekusi Utama (Primary) */
+    div.stButton > button, div.stDownloadButton > button {
+        min-height: 48px !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        font-size: 0.92rem !important;
+        transition: all 0.18s ease-in-out !important;
+    }
+    div.stButton > button[kind="primary"],
+    div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
+        min-height: 54px !important;
+        background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%) !important;
+        color: #FFFFFF !important;
+        border: 1px solid #1E3A8A !important;
+        border-bottom: 3px solid #F59E0B !important;
+        box-shadow: 0 8px 20px -4px rgba(30, 58, 138, 0.35) !important;
+        font-size: 0.96rem !important;
+        letter-spacing: 0.15px !important;
+    }
+    div.stButton > button[kind="primary"]:hover,
+    div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+        background: linear-gradient(135deg, #112240 0%, #2563EB 100%) !important;
+        box-shadow: 0 10px 24px -4px rgba(37, 99, 235, 0.45) !important;
+        transform: translateY(-1px);
+    }
+
     @media (max-width: 640px) {
         .block-container {
-            padding-left: 0.8rem !important;
-            padding-right: 0.8rem !important;
-            padding-top: 1rem !important;
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            padding-top: 0.85rem !important;
+        }
+        .bc-header-card {
+            padding: 1.1rem 1.15rem;
+            border-radius: 16px;
         }
         .bc-header-title {
-            font-size: 1.1rem;
+            font-size: 1.12rem;
+        }
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            padding: 15px !important;
+            border-radius: 15px !important;
         }
     }
 </style>
@@ -175,6 +301,14 @@ BULAN_MAP_REV.update({
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "mei": 5, "jun": 6,
     "jul": 7, "agu": 8, "ags": 8, "sep": 9, "okt": 10, "nov": 11, "des": 12
 })
+
+PRESET_PERMOHONAN_OPTIONS = [
+    "✍️ Ketik Manual / Kosongkan",
+    "Permohonan Pelayanan Pelekatan Tanda Pengaman",
+    "Permohonan Pelayanan Pembukaan Tanda Pengaman",
+    "Permohonan Pemeriksaan Fisik Barang Kena Cukai Hasil Tembakau",
+    "Permohonan Pelayanan Pengawasan Pengeluaran Barang Kena Cukai"
+]
 
 def format_tanggal_indo(d: datetime.date) -> str:
     if not d:
@@ -298,7 +432,7 @@ def render_direct_docx_download(docx_bytes: bytes, filename: str, button_label: 
         body {{
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: transparent;
         }}
         .dl-btn {{
@@ -306,25 +440,25 @@ def render_direct_docx_download(docx_bytes: bytes, filename: str, button_label: 
             align-items: center;
             justify-content: center;
             width: 100%;
-            min-height: 46px;
+            min-height: 48px;
             box-sizing: border-box;
-            background: linear-gradient(135deg, #0f2942 0%, #1b4368 100%);
+            background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%);
             color: #ffffff !important;
             text-decoration: none;
-            font-weight: 600;
+            font-weight: 700;
             font-size: 14.5px;
-            border-radius: 8px;
-            border: 1px solid #0f2942;
-            border-left: 5px solid #d4af37;
+            border-radius: 12px;
+            border: 1px solid #0A192F;
+            border-left: 5px solid #F59E0B;
             cursor: pointer;
-            box-shadow: 0 2px 6px rgba(15, 41, 66, 0.18);
+            box-shadow: 0 4px 12px rgba(10, 25, 47, 0.2);
             transition: all 0.15s ease;
             padding: 8px 14px;
             text-align: center;
         }}
         .dl-btn:hover {{
-            background: linear-gradient(135deg, #163a5c 0%, #235380 100%);
-            box-shadow: 0 4px 10px rgba(15, 41, 66, 0.28);
+            background: linear-gradient(135deg, #112240 0%, #2563EB 100%);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
         }}
     </style>
     <script>
@@ -366,14 +500,11 @@ def render_direct_docx_download(docx_bytes: bytes, filename: str, button_label: 
     </body>
     </html>
     """
-    components.html(html_btn, height=54, scrolling=False)
+    components.html(html_btn, height=56, scrolling=False)
 
 # ==========================================
 # INISIALISASI SESSION STATE & CALLBACKS
 # ==========================================
-if "num_petugas" not in st.session_state:
-    st.session_state["num_petugas"] = 1
-
 if "in_kegiatan_1" not in st.session_state:
     st.session_state["in_kegiatan_1"] = ""
 if "prev_permohonan_1" not in st.session_state:
@@ -383,6 +514,28 @@ if "in_kegiatan_2" not in st.session_state:
     st.session_state["in_kegiatan_2"] = ""
 if "prev_permohonan_2" not in st.session_state:
     st.session_state["prev_permohonan_2"] = ""
+
+def on_preset_permohonan_1_change():
+    pil = st.session_state.get("preset_permohonan_1", PRESET_PERMOHONAN_OPTIONS[0])
+    if pil and pil != PRESET_PERMOHONAN_OPTIONS[0]:
+        st.session_state["in_permohonan_1"] = pil
+        st.session_state["in_kegiatan_1"] = strip_permohonan(pil)
+        st.session_state["prev_permohonan_1"] = pil
+    elif pil == PRESET_PERMOHONAN_OPTIONS[0]:
+        st.session_state["in_permohonan_1"] = ""
+        st.session_state["in_kegiatan_1"] = ""
+        st.session_state["prev_permohonan_1"] = ""
+
+def on_preset_permohonan_2_change():
+    pil2 = st.session_state.get("preset_permohonan_2", PRESET_PERMOHONAN_OPTIONS[0])
+    if pil2 and pil2 != PRESET_PERMOHONAN_OPTIONS[0]:
+        st.session_state["in_permohonan_2"] = pil2
+        st.session_state["in_kegiatan_2"] = strip_permohonan(pil2)
+        st.session_state["prev_permohonan_2"] = pil2
+    elif pil2 == PRESET_PERMOHONAN_OPTIONS[0]:
+        st.session_state["in_permohonan_2"] = ""
+        st.session_state["in_kegiatan_2"] = ""
+        st.session_state["prev_permohonan_2"] = ""
 
 def on_permohonan_1_change():
     cur = st.session_state.get("in_permohonan_1", "")
@@ -396,17 +549,33 @@ def on_permohonan_2_change():
         st.session_state["in_kegiatan_2"] = strip_permohonan(cur2)
         st.session_state["prev_permohonan_2"] = cur2
 
-def reset_form_input():
-    st.session_state["num_petugas"] = 1
+def get_default_petugas(pegawai_list):
+    """Mencari 'Derry Kurniawan' di daftar pegawai sebagai default otomatis."""
+    for p in pegawai_list:
+        if p.strip().lower() == "derry kurniawan":
+            return [p]
+    for p in pegawai_list:
+        if "derry kurniawan" in p.strip().lower():
+            return [p]
+    return []
+
+def reset_form_input(pegawai_list=None):
     st.session_state["in_permohonan_1"] = ""
     st.session_state["in_kegiatan_1"] = ""
     st.session_state["prev_permohonan_1"] = ""
     st.session_state["in_permohonan_2"] = ""
     st.session_state["in_kegiatan_2"] = ""
     st.session_state["prev_permohonan_2"] = ""
-    for k in list(st.session_state.keys()):
-        if k.startswith("dyn_petugas_") or k in ("sel_pt1", "sel_pt2", "in_nosurat1", "in_nosurat2", "chk_pt2", "in_nost_opsional"):
+    st.session_state["preset_permohonan_1"] = PRESET_PERMOHONAN_OPTIONS[0]
+    st.session_state["preset_permohonan_2"] = PRESET_PERMOHONAN_OPTIONS[0]
+    for k in (
+        "sel_pt1", "sel_pt2", "in_nosurat1", "in_nosurat2",
+        "chk_pt2", "in_nost_opsional", "ms_petugas_st", "sel_lok1", "sel_lok2"
+    ):
+        if k in st.session_state:
             del st.session_state[k]
+    if pegawai_list is not None:
+        st.session_state["ms_petugas_st"] = get_default_petugas(pegawai_list)
     if "last_submitted_data" in st.session_state:
         del st.session_state["last_submitted_data"]
 
@@ -1213,17 +1382,17 @@ def render_preview_html(data):
     return html
 
 # ==========================================
-# HEADER BANNER EKSEKUTIF & QUICK METRICS
+# HEADER BANNER EKSEKUTIF & QUICK ACTION BAR
 # ==========================================
 st.markdown(f"""
 <div class="bc-header-card">
-    <div class="bc-header-title">📋 Sistem Terpadu Surat Tugas & Monitoring Perjadin — KPPBC TMC Malang</div>
-    <div class="bc-header-sub">1x Input Otomatis Terhubung ke Database ST + Sheet DATA PERJADIN + Sheet REKAP BAGIAN UMUM</div>
+    <div class="bc-header-title">📋 Sistem Otomasi ST & Monitoring Perjadin — KPPBC TMC Malang</div>
+    <div class="bc-header-sub">Arsitektur 1x Input Terpadu: Database ST (Sheet1) • Sheet REKAP BAGIAN UMUM • Sheet DATA PERJADIN</div>
     <div class="metric-strip">
         <span class="metric-pill">📌 No. ST Berikutnya: <b>#{next_no_preview}</b></span>
-        <span class="metric-pill">🗂️ Total ST: <b>{len(riwayat_list_global)} ST</b></span>
+        <span class="metric-pill">🗂️ Total Riwayat: <b>{len(riwayat_list_global)} ST</b></span>
         <span class="metric-pill">⚠️ Belum Ada ID Perjadin: <b>{jml_belum_perjadin} Hari</b></span>
-        <span class="metric-pill">📝 Menunggu Nomor ST Satu Kemenkeu: <b>{jml_st_belum_nomor} ST</b></span>
+        <span class="metric-pill">📝 Menunggu No. ST Satu Kemenkeu: <b>{jml_st_belum_nomor} ST</b></span>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1235,7 +1404,7 @@ with st.sidebar:
         st.toast("Data berhasil disegarkan dari Google Sheets!", icon="✅")
         st.rerun()
     if st.button("🧹 Bersihkan / Reset Form Input", use_container_width=True):
-        reset_form_input()
+        reset_form_input(list_pegawai)
         st.toast("Form input telah direset!", icon="🧹")
         st.rerun()
     st.divider()
@@ -1244,22 +1413,31 @@ with st.sidebar:
     st.caption("2️⃣ **Saat Nomor ST Keluar dari Satu Kemenkeu:** Buka Tab 3, ketik angkanya saja (misal `2013`), klik Simpan -> otomatis terisi di `REKAP BAGIAN UMUM` & `DATA PERJADIN`, siap di-copy untuk Bagian Umum.")
     st.caption("3️⃣ **Saat ID Perjadin Keluar:** Input ID Kegiatan di Tab 3 -> tulisan *BELUM ADA PERJADIN* otomatis hilang & status berubah!")
 
-col_top_act1, col_top_act2 = st.columns([1, 1])
-with col_top_act1:
-    if st.button("🔄 Refresh Data Sheets", use_container_width=True, key="btn_top_refresh"):
-        st.cache_data.clear()
-        st.toast("Sinkronisasi ulang Google Sheets selesai!", icon="✅")
-        st.rerun()
-with col_top_act2:
-    if st.button("🧹 Reset Form Baru", use_container_width=True, key="btn_top_reset"):
-        reset_form_input()
-        st.toast("Form siap untuk pengisian baru!", icon="✨")
-        st.rerun()
+# Quick Action Bar Ringkas & Elegan
+with st.container(border=True):
+    qa_col1, qa_col2, qa_col3 = st.columns([2.2, 1, 1])
+    with qa_col1:
+        st.markdown(
+            f"<div style='padding-top:6px; font-size:0.86rem; color:#334155;'>"
+            f"⚡ <b>Quick Action Bar:</b> Siap membuat Surat Tugas <b>#{next_no_preview}</b> &nbsp;|&nbsp; "
+            f"<span style='color:#059669; font-weight:700;'>Terhubung ke Google Sheets</span></div>",
+            unsafe_allow_html=True
+        )
+    with qa_col2:
+        if st.button("🔄 Refresh Data Sheets", use_container_width=True, key="btn_top_refresh"):
+            st.cache_data.clear()
+            st.toast("Sinkronisasi ulang Google Sheets selesai!", icon="✅")
+            st.rerun()
+    with qa_col3:
+        if st.button("🧹 Reset Form Baru", use_container_width=True, key="btn_top_reset"):
+            reset_form_input(list_pegawai)
+            st.toast("Form siap untuk pengisian baru!", icon="✨")
+            st.rerun()
 
 tab_input, tab_riwayat, tab_perjadin = st.tabs([
     "📝 1. Buat Surat Tugas Baru",
     f"🗂️ 2. Riwayat & Cetak Ulang ({len(riwayat_list_global)})",
-    f"🚗 3. Monitoring Perjadin & Rekap Bagian Umum ({jml_belum_perjadin} Belum ID)"
+    f"🚗 3. Monitoring Perjadin & Rekap Umum ({jml_belum_perjadin} Belum ID)"
 ])
 
 # ==========================================
@@ -1267,7 +1445,7 @@ tab_input, tab_riwayat, tab_perjadin = st.tabs([
 # ==========================================
 with tab_input:
     # -------------------------------------------------------------
-    # KARTU 1: DATA SURAT PEMOHON & LOKASI PABRIK
+    # KARTU 1: DATA SURAT PEMOHON & LOKASI PABRIK (SMART FILTER + QUICK PRESET)
     # -------------------------------------------------------------
     with st.container(border=True):
         st.markdown('<div class="section-badge">1️⃣ Data Surat Pemohon & Lokasi Pabrik</div>', unsafe_allow_html=True)
@@ -1286,33 +1464,50 @@ with tab_input:
             no_surat_1 = st.text_input("Nomor Surat Pemohon 1*", placeholder="Contoh: 63/IX/BBSA/2026", key="in_nosurat1")
         with c_p1_2:
             tgl_surat_1 = st.date_input("Tanggal Surat 1*", value=datetime.date.today(), key="in_tglsurat1")
-            
+
+        # Quick Preset Permohonan 1 (Hemat Ketik di HP)
+        st.selectbox(
+            "⚡ Quick Preset Permohonan 1 (Pilih untuk Isi Otomatis atau Ketik Manual di Bawah):",
+            options=PRESET_PERMOHONAN_OPTIONS,
+            index=0,
+            key="preset_permohonan_1",
+            on_change=on_preset_permohonan_1_change
+        )
+
         permohonan_1 = st.text_area(
             "Perihal / Permohonan 1*",
             key="in_permohonan_1",
-            placeholder="Contoh: Permohonan Pembukaan Segel Hasil Tembakau...",
+            placeholder="Contoh: Permohonan Pelayanan Pelekatan Tanda Pengaman...",
             on_change=on_permohonan_1_change,
-            height=68
+            height=76
         )
         
         kegiatan_1 = st.text_input(
             "Kegiatan Baku 1 (Otomatis dari Permohonan, Bisa Diedit & Jadi PERIHAL Rekap Umum)*",
             key="in_kegiatan_1",
-            placeholder="Pembukaan Segel Hasil Tembakau..."
+            placeholder="Pelayanan Pelekatan Tanda Pengaman..."
         )
         
+        # Smart Filter Dropdown Titik Lokasi Pabrik 1 (Hanya tampilkan lokasi yang tidak kosong)
+        if pt_1 and pt_1 in perusahaan_data:
+            valid_locs_1 = [idx for idx in range(1, 13) if perusahaan_data[pt_1].get(idx, "").strip()]
+            if not valid_locs_1:
+                valid_locs_1 = [1]
+        else:
+            valid_locs_1 = [1]
+
         def fmt_lokasi_1(loc_num):
             if not pt_1 or pt_1 not in perusahaan_data:
-                return f"Titik Lokasi {loc_num}"
+                return f"📍 Lokasi {loc_num} — (Pilih Pabrik terlebih dahulu)"
             alm = perusahaan_data[pt_1].get(loc_num, "").strip()
             if alm:
-                short_alm = alm if len(alm) <= 68 else alm[:65] + "..."
+                short_alm = alm if len(alm) <= 72 else alm[:69] + "..."
                 return f"📍 Lokasi {loc_num} — {short_alm}"
             return f"⚪ Lokasi {loc_num} — (Kosong)"
 
         pilihan_lokasi_1 = st.selectbox(
-            "Pilihan Titik Lokasi Pabrik 1 (Langsung pilih alamat yang sesuai)*",
-            options=list(range(1, 13)),
+            f"Pilihan Titik Lokasi Pabrik 1 ({len(valid_locs_1)} titik tersedia)*",
+            options=valid_locs_1,
             index=0,
             format_func=fmt_lokasi_1,
             key="sel_lok1"
@@ -1331,7 +1526,7 @@ with tab_input:
                     unsafe_allow_html=True
                 )
             else:
-                st.markdown(f'<div class="info-pill-warn">⚠️ Titik Lokasi {pilihan_lokasi_1} pada <b>{pt_1}</b> tidak memiliki alamat di database. Silakan pilih titik lokasi lain.</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="info-pill-warn">⚠️ Semua titik lokasi pada <b>{pt_1}</b> masih kosong di database DATA NPPBKC.</div>', unsafe_allow_html=True)
 
         tambah_pt2 = st.checkbox("➕ Tambah Pabrik Kedua (Jika 1 Surat Tugas mencakup 2 Pabrik)", value=False, key="chk_pt2")
         
@@ -1346,31 +1541,47 @@ with tab_input:
                 no_surat_2 = st.text_input("Nomor Surat Pemohon 2*", placeholder="Nomor surat pabrik kedua", key="in_nosurat2")
             with c_p2_2:
                 tgl_surat_2 = st.date_input("Tanggal Surat 2*", value=datetime.date.today(), key="in_tglsurat2")
-                
+
+            st.selectbox(
+                "⚡ Quick Preset Permohonan 2 (Opsional):",
+                options=PRESET_PERMOHONAN_OPTIONS,
+                index=0,
+                key="preset_permohonan_2",
+                on_change=on_preset_permohonan_2_change
+            )
+
             permohonan_2 = st.text_area(
                 "Perihal / Permohonan 2*",
                 key="in_permohonan_2",
                 placeholder="Permohonan pabrik kedua...",
                 on_change=on_permohonan_2_change,
-                height=68
+                height=76
             )
             kegiatan_2 = st.text_input(
                 "Kegiatan Baku 2 (Otomatis dari Permohonan 2, Bisa Diedit)*",
                 key="in_kegiatan_2"
             )
             
+            # Smart Filter Dropdown Titik Lokasi Pabrik 2
+            if pt_2 and pt_2 in perusahaan_data:
+                valid_locs_2 = [idx for idx in range(1, 13) if perusahaan_data[pt_2].get(idx, "").strip()]
+                if not valid_locs_2:
+                    valid_locs_2 = [1]
+            else:
+                valid_locs_2 = [1]
+
             def fmt_lokasi_2(loc_num):
                 if not pt_2 or pt_2 not in perusahaan_data:
-                    return f"Titik Lokasi {loc_num}"
+                    return f"📍 Lokasi {loc_num} — (Pilih Pabrik 2 terlebih dahulu)"
                 alm = perusahaan_data[pt_2].get(loc_num, "").strip()
                 if alm:
-                    short_alm = alm if len(alm) <= 68 else alm[:65] + "..."
+                    short_alm = alm if len(alm) <= 72 else alm[:69] + "..."
                     return f"📍 Lokasi {loc_num} — {short_alm}"
                 return f"⚪ Lokasi {loc_num} — (Kosong)"
 
             pilihan_lokasi_2 = st.selectbox(
-                "Pilihan Titik Lokasi Pabrik 2*",
-                options=list(range(1, 13)),
+                f"Pilihan Titik Lokasi Pabrik 2 ({len(valid_locs_2)} titik tersedia)*",
+                options=valid_locs_2,
                 index=0,
                 format_func=fmt_lokasi_2,
                 key="sel_lok2"
@@ -1412,48 +1623,55 @@ with tab_input:
         )
 
     # -------------------------------------------------------------
-    # KARTU 3: TIM PETUGAS PEMERIKSA (SUPER RINGKAS DI HP)
+    # KARTU 3: TIM PETUGAS PEMERIKSA (MULTISELECT INSTAN + BENTO MINI-CARDS)
     # -------------------------------------------------------------
     with st.container(border=True):
-        st.markdown('<div class="section-badge">3️⃣ Tim Petugas Pemeriksa</div>', unsafe_allow_html=True)
-        st.caption("Pilih nama pegawai; Pangkat/Golongan dan Jabatan otomatis tampil dalam kartu ringkas di bawahnya.")
+        st.markdown('<div class="section-badge">3️⃣ Tim Petugas Pemeriksa (Instan Tanpa Loading Berulang)</div>', unsafe_allow_html=True)
+        
+        default_petugas_init = get_default_petugas(list_pegawai)
+        if "ms_petugas_st" not in st.session_state:
+            st.session_state["ms_petugas_st"] = default_petugas_init
+
+        selected_names_ms = st.multiselect(
+            "👮 Pilih Tim Petugas Pemeriksa (Urutan Pilihan = Urutan di ST, Maks. 6 Orang):",
+            options=list_pegawai,
+            max_selections=6,
+            key="ms_petugas_st",
+            placeholder="Ketik nama pegawai untuk memilih (Maksimal 6 orang)..."
+        )
 
         data_petugas_terpilih = []
-        
-        for i in range(1, st.session_state["num_petugas"] + 1):
-            sel_nama = st.selectbox(
-                f"👤 Nama Petugas {i}*",
-                options=["-- Pilih Pegawai --"] + list_pegawai,
-                index=0,
-                key=f"dyn_petugas_{i}"
-            )
-            
-            if sel_nama and sel_nama != "-- Pilih Pegawai --":
-                detail = pegawai_data.get(sel_nama, {})
-                p_nip = detail.get("nip", "-")
-                p_pangkat = detail.get("pangkat", "-")
-                p_jabatan = detail.get("jabatan", "-")
-                data_petugas_terpilih.append({
-                    "no": len(data_petugas_terpilih) + 1,
-                    "nama": sel_nama,
-                    "nip": p_nip,
-                    "pangkat": p_pangkat,
-                    "jabatan": p_jabatan
-                })
-                st.markdown(
-                    f'<div class="info-pill">🎖️ <b>{p_pangkat}</b> &nbsp;|&nbsp; 💼 {p_jabatan} &nbsp;|&nbsp; <span style="color:#64748b;">NIP: {p_nip}</span></div>',
-                    unsafe_allow_html=True
-                )
+        bento_cards_html = []
 
-        col_tambah_p, col_kurang_p = st.columns(2)
-        with col_tambah_p:
-            if st.button(f"➕ Tambah Petugas ({st.session_state['num_petugas']}/6)", disabled=(st.session_state["num_petugas"] >= 6), use_container_width=True):
-                st.session_state["num_petugas"] += 1
-                st.rerun()
-        with col_kurang_p:
-            if st.button("➖ Kurangi Petugas", disabled=(st.session_state["num_petugas"] <= 1), use_container_width=True):
-                st.session_state["num_petugas"] -= 1
-                st.rerun()
+        for idx_p, sel_nama in enumerate(selected_names_ms, start=1):
+            detail = pegawai_data.get(sel_nama, {})
+            p_nip = detail.get("nip", "-")
+            p_pangkat = detail.get("pangkat", "-")
+            p_jabatan = detail.get("jabatan", "-")
+            data_petugas_terpilih.append({
+                "no": idx_p,
+                "nama": sel_nama,
+                "nip": p_nip,
+                "pangkat": p_pangkat,
+                "jabatan": p_jabatan
+            })
+            bento_cards_html.append(
+                f'<div class="petugas-bento-card">'
+                f'<div class="p-title">#{idx_p}. {sel_nama}</div>'
+                f'<div class="p-sub">🎖️ <b>{p_pangkat}</b> | 💼 {p_jabatan}<br>🆔 NIP: {p_nip}</div>'
+                f'</div>'
+            )
+
+        if bento_cards_html:
+            st.markdown(
+                f'<div class="petugas-bento-grid">{"".join(bento_cards_html)}</div>',
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                '<div class="info-pill-warn">⚠️ Belum ada petugas yang dipilih. Silakan pilih minimal 1 pegawai pada kotak di atas.</div>',
+                unsafe_allow_html=True
+            )
 
     # -------------------------------------------------------------
     # KARTU 4: KONFIGURASI PENANDATANGAN
@@ -1495,7 +1713,7 @@ with tab_input:
                     lbl_jab_ringkas = "a.n. Kepala Kantor — Kepala Subbagian Umum"
             
             st.markdown(
-                f'<div class="info-pill">✍️ <b> Format TTE:</b> {lbl_jab_ringkas}<br>👤 <b>Pejabat:</b> {nama_pejabat_ttd or "(Belum dipilih)"}</div>',
+                f'<div class="info-pill">✍️ <b>Format TTE:</b> {lbl_jab_ringkas}<br>👤 <b>Pejabat:</b> {nama_pejabat_ttd or "(Belum dipilih)"}</div>',
                 unsafe_allow_html=True
             )
 
@@ -1647,7 +1865,7 @@ with tab_input:
                     )
                 with col_dl2:
                     if st.button("✨ Buat ST Baru Lagi (Reset)", use_container_width=True, key="btn_reset_after_dl"):
-                        reset_form_input()
+                        reset_form_input(list_pegawai)
                         st.rerun()
             except Exception as e_dl:
                 st.error(f"Gagal membuat file Word: {e_dl}")
@@ -1668,7 +1886,7 @@ with tab_riwayat:
         else:
             kata_kunci = st.text_input(
                 "Filter Cepat (Ketik Nama Pabrik / Nama Petugas / Tanggal / Nomor ST):",
-                placeholder="Contoh: Gudang Baru atau Kukuh atau Oktober...",
+                placeholder="Contoh: Gudang Baru atau Derry atau Oktober...",
                 key="filter_riwayat_kw"
             ).strip().lower()
 
@@ -1698,7 +1916,7 @@ with tab_riwayat:
         info_pt2 = f"<br>🏢 <b>Pabrik 2:</b> {selected_item['pt_2']} (No: {selected_item['no_surat_2']})" if selected_item["pt_2"] else ""
         no_st_badge = selected_item.get("nomor_st_resmi") or "(Belum diisi dari Satu Kemenkeu)"
         st.markdown(f"""
-        <div class="info-pill" style="background:#f0f5fa; border-left: 4px solid #0f2942; padding: 10px 14px;">
+        <div class="info-pill" style="background:#EFF6FF; border-left: 4px solid #1E3A8A; padding: 12px 15px;">
             📌 <b>Ringkasan ST No. #{selected_item['no_urut']}</b> (Baris Spreadsheet: {selected_item['row_num']}) &nbsp;|&nbsp; 🔢 <b>Nomor ST Resmi:</b> {no_st_badge}<br>
             🏢 <b>Pabrik 1:</b> {selected_item['pt_1']} &nbsp;|&nbsp; 📄 <b>No. Surat:</b> {selected_item['no_surat_1']} ({selected_item['tgl_surat_1']}){info_pt2}<br>
             🛠️ <b>Kegiatan:</b> {selected_item['kegiatan_1']} &nbsp;|&nbsp; 🗓️ <b>Waktu:</b> {selected_item['hari']}, {selected_item['tgl_pelaksanaan']}<br>
@@ -1779,30 +1997,23 @@ with tab_riwayat:
                         edit_pt1 = st.selectbox("Nama Perusahaan / Pabrik 1*", options=list_perusahaan, index=idx_pt1)
                         edit_no_surat1 = st.text_input("Nomor Surat Pemohon 1*", value=selected_item["no_surat_1"])
                         edit_tgl_surat1 = st.text_input("Tanggal Surat 1*", value=selected_item["tgl_surat_1"])
-                        edit_permohonan1 = st.text_area("Perihal / Permohonan 1*", value=selected_item["permohonan_1"], height=68)
+                        edit_permohonan1 = st.text_area("Perihal / Permohonan 1*", value=selected_item["permohonan_1"], height=76)
                         edit_kegiatan1 = st.text_input("Kegiatan Baku 1*", value=selected_item["kegiatan_1"])
-                        edit_alamat1 = st.text_area("Alamat Pabrik 1*", value=selected_item["alamat_pabrik_1"], height=65)
+                        edit_alamat1 = st.text_area("Alamat Pabrik 1*", value=selected_item["alamat_pabrik_1"], height=76)
                     
                     with col_e2:
                         edit_hari = st.text_input("Hari Pelaksanaan*", value=selected_item["hari"])
                         edit_tgl_pelaks = st.text_input("Tanggal Pelaksanaan Tugas*", value=selected_item["tgl_pelaksanaan"])
                         edit_no_st_resmi = st.text_input("Nomor ST Resmi (Satu Kemenkeu):", value=selected_item.get("nomor_st_resmi", ""))
                         
-                        st.markdown("**👮 Tim Petugas yang Ditugaskan (1 - 6):**")
-                        cur_p = selected_item["daftar_petugas"]
-                        edit_petugas_list = []
-                        for p_i in range(1, 7):
-                            default_nama = cur_p[p_i-1]["nama"] if len(cur_p) >= p_i else "-- Kosong --"
-                            opts = ["-- Kosong --"] + list_pegawai
-                            idx_sel = opts.index(default_nama) if default_nama in opts else 0
-                            p_nama_edit = st.selectbox(f"Petugas {p_i}:", options=opts, index=idx_sel, key=f"edit_p_{selected_item['no_urut']}_{p_i}")
-                            if p_nama_edit and p_nama_edit != "-- Kosong --":
-                                dtl = pegawai_data.get(p_nama_edit, {})
-                                edit_petugas_list.append({
-                                    "nama": p_nama_edit,
-                                    "pangkat": dtl.get("pangkat", ""),
-                                    "jabatan": dtl.get("jabatan", "")
-                                })
+                        cur_p_names = [p["nama"] for p in selected_item["daftar_petugas"] if p["nama"] in list_pegawai]
+                        edit_selected_names = st.multiselect(
+                            "👮 Tim Petugas yang Ditugaskan (Maks. 6 Orang):",
+                            options=list_pegawai,
+                            default=cur_p_names,
+                            max_selections=6,
+                            key=f"edit_ms_p_{selected_item['no_urut']}"
+                        )
 
                     btn_simpan_edit = st.form_submit_button("💾 Simpan Perubahan ke 3 Sheet Sekaligus", type="primary", use_container_width=True)
 
@@ -1813,6 +2024,15 @@ with tab_riwayat:
                             ws = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
                             r_num = selected_item["row_num"]
                             
+                            edit_petugas_list = []
+                            for p_nama_edit in edit_selected_names:
+                                dtl = pegawai_data.get(p_nama_edit, {})
+                                edit_petugas_list.append({
+                                    "nama": p_nama_edit,
+                                    "pangkat": dtl.get("pangkat", ""),
+                                    "jabatan": dtl.get("jabatan", "")
+                                })
+
                             pad_p = []
                             for pi in range(6):
                                 if pi < len(edit_petugas_list):
@@ -1899,7 +2119,7 @@ with tab_riwayat:
 # ==========================================
 with tab_perjadin:
     st.markdown("""
-    <div class="info-pill" style="background:#f0f5fa; border-left: 4px solid #0f2942; padding: 10px 14px;">
+    <div class="info-pill" style="background:#EFF6FF; border-left: 4px solid #1E3A8A; padding: 11px 15px;">
         💡 <b>Arsitektur Zero-Double-Work (Cukup 1x Kerja):</b><br>
         • <b>Tahap 1 (Saat Buat ST di Tab 1):</b> Data otomatis masuk ke <code>REKAP BAGIAN UMUM</code> & mencentang tanggal di <code>DATA PERJADIN</code> (memicu pengingat <b>BELUM ADA PERJADIN</b>).<br>
         • <b>Tahap 2 (Saat Nomor ST Keluar dari Satu Kemenkeu):</b> Ketik angkanya saja di bawah (misal <code>2013</code>) -> otomatis masuk ke <code>REKAP BAGIAN UMUM</code> & <code>DATA PERJADIN</code>, lalu tinggal Copy tabelnya untuk dikirim ke Bagian Umum.<br>
@@ -2186,22 +2406,22 @@ with tab_perjadin:
             st.dataframe(list(reversed(active_perj_table)), use_container_width=True, hide_index=True)
 
     # ------------------------------------------------------------------
-    # SUB-TAB C: SINKRONISASI MASSAL DATA LAMA DARI SHEET1 KE REKAP UMUM & PERJADIN
+    # SUB-TAB C: SINKRONISASI MASSAL DATA LAMA (BATCH API OPTIMIZED)
     # ------------------------------------------------------------------
     with sub_sync_massal:
         with st.container(border=True):
-            st.markdown('<div class="section-badge">🔄 Tarik & Sinkronkan Otomatis Seluruh Riwayat ST (Backfill 1-Klik)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-badge">🔄 Tarik & Sinkronkan Otomatis Seluruh Riwayat ST (Batch API 10x Lebih Cepat)</div>', unsafe_allow_html=True)
             st.markdown("""
             Fitur ini dirancang khusus agar kamu **tidak perlu mengetik ulang** data Surat Tugas yang sudah pernah diinput di `Sheet1`:
-            1. Otomatis membuat sheet baru bernama **`REKAP BAGIAN UMUM`** (jika belum ada) lengkap dengan 9 kolom sesuai contohmu (`NO`, `TANGGAL`, `PERIHAL`, `Nama Pabrik`, `LOKASI`, `Kecamatan`, `PETUGAS`, `TANGGAL PELAKSANAAN`, `NOMOR ST`).
+            1. Otomatis membuat sheet baru bernama **`REKAP BAGIAN UMUM`** (jika belum ada) lengkap dengan 9 kolom (`NO`, `TANGGAL`, `PERIHAL`, `Nama Pabrik`, `LOKASI`, `Kecamatan`, `PETUGAS`, `TANGGAL PELAKSANAAN`, `NOMOR ST`).
             2. Mengekstrak otomatis **Kabupaten/Kota** dan **Kecamatan** dari alamat pabrik untuk seluruh riwayat ST di `Sheet1`.
             3. Mencocokkan `NOMOR ST` yang sudah tercatat di `DATA PERJADIN` agar langsung masuk ke `REKAP BAGIAN UMUM`.
-            4. Mencentang otomatis `LUAR KOTA` / `DALAM KOTA` pada tanggal-tanggal di `DATA PERJADIN` yang sudah ada ST-nya di `Sheet1` tetapi belum sempat tercentang (seperti ST tanggal 12–14 Oktober 2026).
+            4. Menggunakan **Batch API Update (`ws_perj.batch_update`)** untuk mencentang sekaligus seluruh tanggal `LUAR KOTA` / `DALAM KOTA` di `DATA PERJADIN` dalam 1x panggilan jaringan (10x lebih cepat & bebas limit kuota API Google Sheets).
             """)
 
             if st.button("🚀 Jalankan Sinkronisasi Otomatis Seluruh Data Sheet1 -> REKAP BAGIAN UMUM & DATA PERJADIN", type="primary", use_container_width=True):
                 try:
-                    with st.spinner("Sedang memproses & menyinkronkan seluruh riwayat ST ke REKAP BAGIAN UMUM dan DATA PERJADIN..."):
+                    with st.spinner("Sedang memproses & menyinkronkan seluruh riwayat ST secara Batch ke REKAP BAGIAN UMUM dan DATA PERJADIN..."):
                         ss = get_spreadsheet()
                         ws_rekap = get_or_create_rekap_worksheet(ss)
                         ws_perj = find_worksheet_flexible(ss, ["DATA PERJADIN", "PERJADIN"])
@@ -2223,7 +2443,7 @@ with tab_perjadin:
                         )
 
                         rekap_batch = [REKAP_HEADERS]
-                        perjadin_updates_count = 0
+                        batch_perjadin_map = {}
 
                         for item in sorted_st:
                             no_u = item["no_urut"]
@@ -2268,32 +2488,34 @@ with tab_perjadin:
                                 need_b = True if not is_dk else cur_b
                                 need_c = True if is_dk else cur_c
                                 if (need_b != cur_b) or (need_c != cur_c) or cur_d:
-                                    ws_perj.update(
-                                        f"B{p_rnum}:D{p_rnum}",
-                                        [[need_b, need_c, False]],
-                                        value_input_option="USER_ENTERED"
-                                    )
                                     p_rvals[1] = "TRUE" if need_b else "FALSE"
                                     p_rvals[2] = "TRUE" if need_c else "FALSE"
                                     p_rvals[3] = "FALSE"
-                                    perjadin_updates_count += 1
+                                    batch_perjadin_map[p_rnum] = {
+                                        "range": f"B{p_rnum}:D{p_rnum}",
+                                        "values": [[need_b, need_c, False]]
+                                    }
+
+                        batch_perjadin_payload = list(batch_perjadin_map.values())
+                        if batch_perjadin_payload:
+                            ws_perj.batch_update(batch_perjadin_payload, value_input_option="USER_ENTERED")
 
                         ws_rekap.clear()
                         ws_rekap.update(f"A1:I{len(rekap_batch)}", rekap_batch, value_input_option="USER_ENTERED")
                         try:
                             ws_rekap.format("A1:I1", {
-                                "backgroundColor": {"red": 0.06, "green": 0.16, "blue": 0.26},
+                                "backgroundColor": {"red": 0.04, "green": 0.10, "blue": 0.18},
                                 "textFormat": {"bold": True, "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0}},
                                 "horizontalAlignment": "CENTER"
                             })
                         except Exception:
                             pass
 
-                        st.toast("Sinkronisasi massal selesai!", icon="🎉")
+                        st.toast("Sinkronisasi massal Batch API selesai!", icon="🎉")
                         st.success(
-                            f"✅ **Sinkronisasi Massal Selesai!**\n"
-                            f"- **{len(rekap_batch) - 1} Surat Tugas** berhasil disusun rapi ke dalam sheet baru **`{REKAP_SHEET_NAME}`**.\n"
-                            f"- **{perjadin_updates_count} Tanggal Pelaksanaan** di **`DATA PERJADIN`** otomatis diperbarui centang Luar Kota / Dalam Kota-nya."
+                            f"✅ **Sinkronisasi Massal Batch Selesai!**\n"
+                            f"- **{len(rekap_batch) - 1} Surat Tugas** berhasil disusun rapi ke dalam sheet **`{REKAP_SHEET_NAME}`**.\n"
+                            f"- **{len(batch_perjadin_payload)} Tanggal Pelaksanaan** di **`DATA PERJADIN`** otomatis diperbarui sekaligus via `batch_update`."
                         )
                         st.cache_data.clear()
                         st.rerun()
