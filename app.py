@@ -23,184 +23,318 @@ st.set_page_config(
 )
 
 # ==========================================
-# ARSITEKTUR UI/UX: BENTO GRID + SOFT GLASSMORPHISM + MINIMALIST EDITORIAL
+# ARSITEKTUR UI/UX: BENTO GRID + ANTI-DARK-MODE BLEED (100% KONTRAS TINGGI DI HP)
 # ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
-    /* 1. Palet Warna Utama & Tipografi Editorial */
-    html, body, [class*="css"], .stApp {
+    /* 1. Kunci Palet Light Mode & Variabel Internal Streamlit (100% Kebal Dark Mode Browser HP) */
+    :root, html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+        color-scheme: light !important;
+        --primary-color: #1E3A8A !important;
+        --background-color: #F4F7FB !important;
+        --secondary-background-color: #FFFFFF !important;
+        --text-color: #0F172A !important;
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
         background-color: #F4F7FB !important;
-        color: #0F172A;
+        color: #0F172A !important;
+    }
+
+    /* Header Top Bar Streamlit agar bersih & tidak memotong judul di HP */
+    header[data-testid="stHeader"] {
+        background: rgba(244, 247, 251, 0.88) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        border-bottom: 1px solid #E2E8F0 !important;
     }
 
     .block-container {
-        padding-top: 1.25rem !important;
-        padding-bottom: 3rem !important;
+        padding-top: 3.5rem !important;
+        padding-bottom: 3.5rem !important;
         max-width: 1140px !important;
     }
 
-    /* 2. Arsitektur Bento Grid Sejati via Native Container */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: #FFFFFF !important;
+    /* 2. Paksa Seluruh Label Form, Teks, Radio, Checkbox & Heading Kontras Tinggi (Gelap di Atas Putih) */
+    label,
+    .stApp label,
+    div[data-testid="stWidgetLabel"],
+    div[data-testid="stWidgetLabel"] p,
+    div[data-testid="stWidgetLabel"] span,
+    div[data-testid="stMarkdownContainer"] p,
+    div[data-testid="stMarkdownContainer"] li,
+    div[data-testid="stMarkdownContainer"] span,
+    div[data-testid="stMarkdownContainer"] strong,
+    div[data-testid="stMarkdownContainer"] b,
+    div[data-testid="stMarkdownContainer"] h1,
+    div[data-testid="stMarkdownContainer"] h2,
+    div[data-testid="stMarkdownContainer"] h3,
+    div[data-testid="stMarkdownContainer"] h4,
+    div[role="radiogroup"] label,
+    div[role="radiogroup"] label p,
+    div[role="radiogroup"] label span,
+    div[data-testid="stCheckbox"] label,
+    div[data-testid="stCheckbox"] label p,
+    div[data-testid="stCheckbox"] label span,
+    div[data-testid="stExpander"] summary p,
+    div[data-testid="stExpander"] summary span {
+        color: #0F172A !important;
+    }
+
+    div[data-testid="stWidgetLabel"] p {
+        font-weight: 700 !important;
+        font-size: 0.9rem !important;
+        color: #0A192F !important;
+        margin-bottom: 2px !important;
+    }
+
+    div[data-testid="stCaptionContainer"] p,
+    div[data-testid="stCaptionContainer"] span {
+        color: #475569 !important;
+        font-size: 0.82rem !important;
+    }
+
+    /* 3. Arsitektur Bento Grid Sejati via Native Container (Kompatibel Semua Versi Streamlit) */
+    div[data-testid="stVerticalBlockBorderWrapper"],
+    div[data-testid="stLayoutWrapper"] > div[style*="border"] {
+        background-color: #FFFFFF !important;
         border-radius: 18px !important;
-        border: 1px solid rgba(226, 232, 240, 0.95) !important;
-        box-shadow: 0 6px 24px -4px rgba(15, 23, 42, 0.05) !important;
-        padding: 20px !important;
-        margin-bottom: 0.85rem !important;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        border: 1.5px solid #E2E8F0 !important;
+        box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.06) !important;
+        padding: 18px !important;
+        margin-bottom: 0.9rem !important;
     }
 
-    /* 3. Header Instansi & Metric Bento Strip (Soft Glassmorphism) */
+    /* 4. Banner Header Instansi & Metric Bento Strip (Soft Glassmorphism) */
     .bc-header-card {
-        background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%);
-        color: #FFFFFF;
-        padding: 1.35rem 1.5rem;
-        border-radius: 20px;
-        border-left: 6px solid #F59E0B;
-        border-bottom: 2px solid rgba(245, 158, 11, 0.45);
-        box-shadow: 0 12px 28px -6px rgba(10, 25, 47, 0.22);
-        margin-bottom: 0.9rem;
-        position: relative;
-        overflow: hidden;
-    }
-    .bc-header-title {
-        font-size: 1.35rem;
-        font-weight: 800;
-        margin: 0;
-        letter-spacing: -0.2px;
+        background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%) !important;
         color: #FFFFFF !important;
-        line-height: 1.3;
+        padding: 1.3rem 1.45rem !important;
+        border-radius: 20px !important;
+        border-left: 6px solid #F59E0B !important;
+        border-bottom: 2px solid rgba(245, 158, 11, 0.5) !important;
+        box-shadow: 0 12px 28px -6px rgba(10, 25, 47, 0.25) !important;
+        margin-bottom: 0.95rem !important;
     }
-    .bc-header-sub {
-        font-size: 0.86rem;
-        color: #DBEAFE;
-        margin-top: 0.3rem;
-        margin-bottom: 0;
-        font-weight: 500;
+    .bc-header-card .bc-header-title {
+        font-size: 1.3rem !important;
+        font-weight: 800 !important;
+        margin: 0 !important;
+        letter-spacing: -0.2px !important;
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        line-height: 1.35 !important;
     }
-    .metric-strip {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 0.9rem;
+    .bc-header-card .bc-header-sub {
+        font-size: 0.85rem !important;
+        color: #DBEAFE !important;
+        -webkit-text-fill-color: #DBEAFE !important;
+        margin-top: 0.35rem !important;
+        margin-bottom: 0 !important;
+        font-weight: 500 !important;
+        line-height: 1.4 !important;
     }
-    .metric-pill {
-        background: rgba(255, 255, 255, 0.12);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        color: #FFFFFF;
-        padding: 5px 13px;
-        border-radius: 999px;
-        font-size: 0.78rem;
-        font-weight: 600;
-        letter-spacing: 0.1px;
+    .bc-header-card .metric-strip {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        margin-top: 0.9rem !important;
     }
-    .metric-pill b {
-        color: #FBBF24;
-        font-weight: 800;
+    .bc-header-card .metric-pill {
+        background: rgba(255, 255, 255, 0.14) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        padding: 5px 12px !important;
+        border-radius: 999px !important;
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+    }
+    .bc-header-card .metric-pill b {
+        color: #FBBF24 !important;
+        -webkit-text-fill-color: #FBBF24 !important;
+        font-weight: 800 !important;
     }
 
-    /* 4. Header Seksi Bento di Dalam Kartu */
+    /* 5. Header Seksi Bento di Dalam Kartu */
     .section-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        background: linear-gradient(90deg, #EFF6FF 0%, #F8FAFC 100%);
-        color: #0A192F;
-        padding: 6px 14px;
-        border-radius: 10px;
-        font-weight: 800;
-        font-size: 0.93rem;
-        border-left: 4px solid #1E3A8A;
-        margin-bottom: 0.75rem;
-        letter-spacing: -0.1px;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        background: linear-gradient(90deg, #EFF6FF 0%, #F8FAFC 100%) !important;
+        color: #0A192F !important;
+        -webkit-text-fill-color: #0A192F !important;
+        padding: 7px 14px !important;
+        border-radius: 10px !important;
+        font-weight: 800 !important;
+        font-size: 0.93rem !important;
+        border: 1px solid #DBEAFE !important;
+        border-left: 4px solid #1E3A8A !important;
+        margin-bottom: 0.8rem !important;
     }
 
-    /* 5. Bento Mini-Cards & Info Pills (Pegawai, Lokasi, Status) */
+    /* 6. Bento Mini-Cards & Info Pills (Pegawai, Lokasi, Status) */
     .info-pill {
-        background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-left: 4px solid #1E3A8A;
-        padding: 9px 13px;
-        border-radius: 10px;
-        font-size: 0.84rem;
-        color: #1E293B;
-        margin-top: 2px;
-        margin-bottom: 10px;
-        line-height: 1.45;
+        background-color: #F8FAFC !important;
+        border: 1px solid #CBD5E1 !important;
+        border-left: 4px solid #1E3A8A !important;
+        padding: 10px 14px !important;
+        border-radius: 10px !important;
+        font-size: 0.84rem !important;
+        color: #1E293B !important;
+        margin-top: 4px !important;
+        margin-bottom: 10px !important;
+        line-height: 1.5 !important;
     }
     .info-pill-warn {
-        background-color: #FFFBEB;
-        border: 1px solid #FDE68A;
-        border-left: 4px solid #F59E0B;
-        padding: 9px 13px;
-        border-radius: 10px;
-        font-size: 0.84rem;
-        color: #92400E;
-        margin-top: 2px;
-        margin-bottom: 10px;
-        line-height: 1.45;
+        background-color: #FFFBEB !important;
+        border: 1px solid #FCD34D !important;
+        border-left: 4px solid #F59E0B !important;
+        padding: 10px 14px !important;
+        border-radius: 10px !important;
+        font-size: 0.84rem !important;
+        color: #92400E !important;
+        margin-top: 4px !important;
+        margin-bottom: 10px !important;
+        line-height: 1.5 !important;
     }
     .info-pill-ok {
-        background-color: #ECFDF5;
-        border: 1px solid #A7F3D0;
-        border-left: 4px solid #10B981;
-        padding: 9px 13px;
-        border-radius: 10px;
-        font-size: 0.84rem;
-        color: #065F46;
-        margin-top: 2px;
-        margin-bottom: 10px;
-        line-height: 1.45;
+        background-color: #ECFDF5 !important;
+        border: 1px solid #6EE7B7 !important;
+        border-left: 4px solid #10B981 !important;
+        padding: 10px 14px !important;
+        border-radius: 10px !important;
+        font-size: 0.84rem !important;
+        color: #065F46 !important;
+        margin-top: 4px !important;
+        margin-bottom: 10px !important;
+        line-height: 1.5 !important;
     }
     .petugas-bento-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 10px;
-        margin-top: 8px;
-        margin-bottom: 6px;
+        display: grid !important;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+        gap: 10px !important;
+        margin-top: 8px !important;
+        margin-bottom: 6px !important;
     }
     .petugas-bento-card {
-        background: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-left: 4px solid #F59E0B;
-        border-radius: 12px;
-        padding: 9px 12px;
-        font-size: 0.82rem;
-        line-height: 1.4;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+        background: #F8FAFC !important;
+        border: 1px solid #CBD5E1 !important;
+        border-left: 4px solid #F59E0B !important;
+        border-radius: 12px !important;
+        padding: 10px 13px !important;
+        font-size: 0.83rem !important;
+        line-height: 1.45 !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
     }
     .petugas-bento-card .p-title {
-        font-weight: 700;
-        color: #0A192F;
-        font-size: 0.87rem;
-        margin-bottom: 2px;
+        font-weight: 800 !important;
+        color: #0A192F !important;
+        font-size: 0.88rem !important;
+        margin-bottom: 3px !important;
     }
     .petugas-bento-card .p-sub {
-        color: #475569;
-        font-size: 0.78rem;
+        color: #334155 !important;
+        font-size: 0.79rem !important;
     }
 
-    /* 6. Ergonomi Mobile-First (Anti Auto-Zoom iOS/Android & Nyaman untuk Jempol) */
-    input, textarea, div[data-baseweb="select"], div[data-baseweb="input"], div[data-baseweb="textarea"] {
+    /* 7. Kolom Input, Selectbox, DateInput, Textarea & Menu Dropdown (Terang, Jelas & Anti Auto-Zoom 16px) */
+    input,
+    textarea,
+    div[data-baseweb="input"],
+    div[data-baseweb="base-input"],
+    div[data-baseweb="textarea"],
+    div[data-baseweb="select"] {
         font-size: 16px !important;
         border-radius: 12px !important;
     }
+
     div[data-baseweb="select"] > div,
-    div[data-baseweb="input"] > div {
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="base-input"],
+    div[data-baseweb="textarea"] {
         min-height: 48px !important;
+        background-color: #FFFFFF !important;
+        color: #0F172A !important;
+        border: 1.5px solid #94A3B8 !important;
         border-radius: 12px !important;
-    }
-    textarea {
-        min-height: 76px !important;
-        border-radius: 12px !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
     }
 
-    /* 7. Segmented Pill Control untuk Tab Navigasi (Swipeable di HP) */
+    div[data-baseweb="select"] > div:focus-within,
+    div[data-baseweb="input"] > div:focus-within,
+    div[data-baseweb="textarea"]:focus-within {
+        background-color: #FFFFFF !important;
+        border-color: #1E3A8A !important;
+        box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.15) !important;
+    }
+
+    input,
+    textarea,
+    div[data-baseweb="select"] span,
+    div[data-baseweb="select"] div {
+        color: #0F172A !important;
+        -webkit-text-fill-color: #0F172A !important;
+        background-color: transparent !important;
+    }
+
+    div[data-baseweb="select"] svg {
+        fill: #1E293B !important;
+        color: #1E293B !important;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        color: #64748B !important;
+        -webkit-text-fill-color: #64748B !important;
+        opacity: 1 !important;
+    }
+
+    /* Tag Multiselect Petugas (Biru Muda Kontras Tinggi) */
+    span[data-baseweb="tag"] {
+        background-color: #DBEAFE !important;
+        border: 1px solid #60A5FA !important;
+        border-radius: 8px !important;
+        padding: 3px 8px !important;
+    }
+    span[data-baseweb="tag"] span {
+        color: #0A192F !important;
+        -webkit-text-fill-color: #0A192F !important;
+        font-weight: 700 !important;
+        font-size: 0.82rem !important;
+    }
+
+    /* Daftar Pilihan Dropdown saat Dibuka di HP */
+    div[data-baseweb="popover"],
+    ul[data-baseweb="menu"],
+    div[role="listbox"] {
+        background-color: #FFFFFF !important;
+        color: #0F172A !important;
+        border: 1.5px solid #CBD5E1 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.14) !important;
+    }
+    li[role="option"],
+    div[role="option"] {
+        background-color: #FFFFFF !important;
+        color: #0F172A !important;
+        -webkit-text-fill-color: #0F172A !important;
+        font-size: 0.92rem !important;
+        padding: 10px 14px !important;
+    }
+    li[role="option"]:hover,
+    li[role="option"][aria-selected="true"],
+    div[role="option"]:hover,
+    div[role="option"][aria-selected="true"] {
+        background-color: #EFF6FF !important;
+        color: #1E3A8A !important;
+        -webkit-text-fill-color: #1E3A8A !important;
+        font-weight: 700 !important;
+    }
+
+    /* 8. Segmented Pill Control untuk Tab Navigasi (100% Terbaca Jelas di HP & Bisa Di-Swipe) */
     div[data-baseweb="tab-list"] {
         display: flex !important;
         flex-wrap: nowrap !important;
@@ -209,9 +343,10 @@ st.markdown("""
         scrollbar-width: none !important;
         -ms-overflow-style: none !important;
         gap: 8px !important;
-        background: #E2E8F0 !important;
+        background-color: #E2E8F0 !important;
         padding: 6px !important;
         border-radius: 14px !important;
+        border: 1px solid #CBD5E1 !important;
         margin-bottom: 1rem !important;
     }
     div[data-baseweb="tab-list"]::-webkit-scrollbar {
@@ -219,66 +354,124 @@ st.markdown("""
     }
     button[data-baseweb="tab"] {
         font-weight: 700 !important;
-        font-size: 0.9rem !important;
-        padding: 10px 18px !important;
+        font-size: 0.88rem !important;
+        padding: 10px 16px !important;
         border-radius: 10px !important;
-        border: none !important;
-        background: transparent !important;
-        color: #475569 !important;
+        border: 1px solid #CBD5E1 !important;
+        background-color: #FFFFFF !important;
+        color: #1E293B !important;
         transition: all 0.18s ease !important;
         min-height: 44px !important;
+        flex-shrink: 0 !important;
+    }
+    button[data-baseweb="tab"] p,
+    button[data-baseweb="tab"] span,
+    button[data-baseweb="tab"] div {
+        color: #1E293B !important;
+        -webkit-text-fill-color: #1E293B !important;
+        font-weight: 700 !important;
     }
     button[data-baseweb="tab"][aria-selected="true"] {
-        background: #FFFFFF !important;
-        color: #0A192F !important;
-        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08) !important;
+        background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%) !important;
+        color: #FFFFFF !important;
+        border: 1px solid #0A192F !important;
+        border-bottom: 3px solid #F59E0B !important;
+        box-shadow: 0 4px 12px rgba(10, 25, 47, 0.22) !important;
     }
-    div[data-baseweb="tab-highlight"], div[data-baseweb="tab-border"] {
+    button[data-baseweb="tab"][aria-selected="true"] p,
+    button[data-baseweb="tab"][aria-selected="true"] span,
+    button[data-baseweb="tab"][aria-selected="true"] div {
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        font-weight: 800 !important;
+    }
+    div[data-baseweb="tab-highlight"],
+    div[data-baseweb="tab-border"] {
         display: none !important;
     }
 
-    /* 8. Tombol Standar & Tombol Eksekusi Utama (Primary) */
-    div.stButton > button, div.stDownloadButton > button {
+    /* 9. Tombol Sekunder (Refresh & Reset) & Tombol Eksekusi Utama (Primary) */
+    div.stButton > button,
+    div.stDownloadButton > button {
         min-height: 48px !important;
         border-radius: 12px !important;
         font-weight: 700 !important;
         font-size: 0.92rem !important;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F1F5F9 100%) !important;
+        color: #0A192F !important;
+        border: 1.5px solid #94A3B8 !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06) !important;
         transition: all 0.18s ease-in-out !important;
     }
+    div.stButton > button p,
+    div.stButton > button span,
+    div.stButton > button div,
+    div.stDownloadButton > button p,
+    div.stDownloadButton > button span {
+        color: #0A192F !important;
+        -webkit-text-fill-color: #0A192F !important;
+        font-weight: 700 !important;
+    }
+    div.stButton > button:hover {
+        background: #EFF6FF !important;
+        border-color: #1E3A8A !important;
+    }
+
+    /* Tombol Primary (Simpan & Eksekusi) */
     div.stButton > button[kind="primary"],
+    div[data-testid="stFormSubmitButton"] > button,
     div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
         min-height: 54px !important;
         background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%) !important;
         color: #FFFFFF !important;
         border: 1px solid #1E3A8A !important;
-        border-bottom: 3px solid #F59E0B !important;
+        border-bottom: 3.5px solid #F59E0B !important;
         box-shadow: 0 8px 20px -4px rgba(30, 58, 138, 0.35) !important;
-        font-size: 0.96rem !important;
-        letter-spacing: 0.15px !important;
+        font-size: 0.95rem !important;
+    }
+    div.stButton > button[kind="primary"] p,
+    div.stButton > button[kind="primary"] span,
+    div.stButton > button[kind="primary"] div,
+    div[data-testid="stFormSubmitButton"] > button p,
+    div[data-testid="stFormSubmitButton"] > button span,
+    div[data-testid="stFormSubmitButton"] > button div {
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        font-weight: 800 !important;
     }
     div.stButton > button[kind="primary"]:hover,
-    div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
+    div[data-testid="stFormSubmitButton"] > button:hover {
         background: linear-gradient(135deg, #112240 0%, #2563EB 100%) !important;
         box-shadow: 0 10px 24px -4px rgba(37, 99, 235, 0.45) !important;
         transform: translateY(-1px);
+    }
+
+    /* Sidebar tetap bersih & terang */
+    section[data-testid="stSidebar"] {
+        background-color: #FFFFFF !important;
+        border-right: 1px solid #E2E8F0 !important;
     }
 
     @media (max-width: 640px) {
         .block-container {
             padding-left: 0.75rem !important;
             padding-right: 0.75rem !important;
-            padding-top: 0.85rem !important;
+            padding-top: 3.3rem !important;
         }
         .bc-header-card {
-            padding: 1.1rem 1.15rem;
-            border-radius: 16px;
+            padding: 1.15rem 1.15rem !important;
+            border-radius: 16px !important;
         }
-        .bc-header-title {
-            font-size: 1.12rem;
+        .bc-header-card .bc-header-title {
+            font-size: 1.12rem !important;
         }
         div[data-testid="stVerticalBlockBorderWrapper"] {
             padding: 15px !important;
-            border-radius: 15px !important;
+            border-radius: 16px !important;
+        }
+        button[data-baseweb="tab"] {
+            padding: 9px 13px !important;
+            font-size: 0.83rem !important;
         }
     }
 </style>
