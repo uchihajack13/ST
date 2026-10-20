@@ -503,13 +503,38 @@ PRESET_PERMOHONAN_OPTIONS = [
     "Permohonan Pelayanan Pengawasan Pengeluaran Barang Kena Cukai"
 ]
 
+def format_hari_indo(d: datetime.date) -> str:
+    if not d:
+        return ""
+    en_day = d.strftime("%A")
+    return HARI_INDONESIA.get(en_day, en_day)
+
 def format_tanggal_indo(d: datetime.date) -> str:
     if not d:
         return ""
     return f"{d.day} {BULAN_INDONESIA[d.month]} {d.year}"
 
+def format_hari_tanggal_pelaksanaan(d_mulai: datetime.date, d_akhir: datetime.date = None):
+    """
+    Menghasilkan tuple (hari_str, tanggal_str, durasi_hari):
+    - Jika 1 hari (d_akhir is None atau d_akhir <= d_mulai):
+      -> ('Rabu', '21 Oktober 2026', 1)
+    - Jika > 1 hari (d_akhir > d_mulai):
+      -> ('Rabu s.d. Jumat', '21 Oktober 2026 s.d. 23 Oktober 2026', 3)
+    """
+    if not d_mulai:
+        return "", "", 0
+    if not d_akhir or d_akhir <= d_mulai:
+        return format_hari_indo(d_mulai), format_tanggal_indo(d_mulai), 1
+    hari_mulai = format_hari_indo(d_mulai)
+    hari_akhir = format_hari_indo(d_akhir)
+    tgl_mulai_str = format_tanggal_indo(d_mulai)
+    tgl_akhir_str = format_tanggal_indo(d_akhir)
+    durasi = (d_akhir - d_mulai).days + 1
+    return f"{hari_mulai} s.d. {hari_akhir}", f"{tgl_mulai_str} s.d. {tgl_akhir_str}", durasi
+
 def parse_indo_date(val) -> datetime.date:
-    """Mengubah berbagai format string tanggal Indonesia / ISO menjadi datetime.date."""
+    """Mengubah berbagai format string tanggal Indonesia / ISO menjadi datetime.date (mengambil tanggal pertama jika berupa rentang)."""
     if not val:
         return None
     if isinstance(val, datetime.datetime):
@@ -530,6 +555,17 @@ def parse_indo_date(val) -> datetime.date:
                 return datetime.date(yr, BULAN_MAP_REV[mon_str], day)
             except Exception:
                 pass
+    # Coba format rentang ringkas "21 s.d. 23 Oktober 2026"
+    m_short = re.search(r'(\d{1,2})\s*(?:s\.?d\.?|s/d|-|–)\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s, flags=re.IGNORECASE)
+    if m_short:
+        day1 = int(m_short.group(1))
+        mon_str = m_short.group(3).lower()
+        yr = int(m_short.group(4))
+        if mon_str in BULAN_MAP_REV:
+            try:
+                return datetime.date(yr, BULAN_MAP_REV[mon_str], day1)
+            except Exception:
+                pass
     # Coba format ISO "2026-10-15"
     m2 = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})', s)
     if m2:
@@ -545,6 +581,57 @@ def parse_indo_date(val) -> datetime.date:
         except Exception:
             pass
     return None
+
+def parse_indo_date_range(val) -> list:
+    """
+    Mengekstrak seluruh daftar datetime.date harian dari string tanggal tunggal maupun rentang tanggal.
+    Contoh:
+    - '21 Oktober 2026' -> [date(2026, 10, 21)]
+    - '21 Oktober 2026 s.d. 23 Oktober 2026' -> [date(2026, 10, 21), date(2026, 10, 22), date(2026, 10, 23)]
+    - '21 s.d. 23 Oktober 2026' -> [date(2026, 10, 21), date(2026, 10, 22), date(2026, 10, 23)]
+    """
+    if not val:
+        return []
+    if isinstance(val, (datetime.date, datetime.datetime)):
+        d_single = parse_indo_date(val)
+        return [d_single] if d_single else []
+    s = str(val).strip()
+    if not s:
+        return []
+
+    # 1. Cek jika ada >= 2 tanggal lengkap (misal: "21 Oktober 2026 s.d. 23 Oktober 2026" atau "30 Oktober 2026 s.d. 2 November 2026")
+    all_full = re.findall(r'(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s)
+    if len(all_full) >= 2:
+        try:
+            d1_day, d1_mon, d1_yr = int(all_full[0][0]), all_full[0][1].lower(), int(all_full[0][2])
+            d2_day, d2_mon, d2_yr = int(all_full[-1][0]), all_full[-1][1].lower(), int(all_full[-1][2])
+            if d1_mon in BULAN_MAP_REV and d2_mon in BULAN_MAP_REV:
+                dt1 = datetime.date(d1_yr, BULAN_MAP_REV[d1_mon], d1_day)
+                dt2 = datetime.date(d2_yr, BULAN_MAP_REV[d2_mon], d2_day)
+                if dt2 >= dt1 and (dt2 - dt1).days <= 60:
+                    return [dt1 + datetime.timedelta(days=i) for i in range((dt2 - dt1).days + 1)]
+        except Exception:
+            pass
+
+    # 2. Cek jika format ringkas dalam bulan yang sama (misal: "21 s.d. 23 Oktober 2026" atau "21 - 23 Oktober 2026")
+    m_short = re.search(r'(\d{1,2})\s*(?:s\.?d\.?|s/d|-|–)\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s, flags=re.IGNORECASE)
+    if m_short:
+        try:
+            day1 = int(m_short.group(1))
+            day2 = int(m_short.group(2))
+            mon_str = m_short.group(3).lower()
+            yr = int(m_short.group(4))
+            if mon_str in BULAN_MAP_REV:
+                dt1 = datetime.date(yr, BULAN_MAP_REV[mon_str], day1)
+                dt2 = datetime.date(yr, BULAN_MAP_REV[mon_str], day2)
+                if dt2 >= dt1 and (dt2 - dt1).days <= 60:
+                    return [dt1 + datetime.timedelta(days=i) for i in range((dt2 - dt1).days + 1)]
+        except Exception:
+            pass
+
+    # 3. Fallback tanggal tunggal
+    d_one = parse_indo_date(s)
+    return [d_one] if d_one else []
 
 def strip_permohonan(text: str) -> str:
     if not text:
@@ -742,6 +829,16 @@ def on_permohonan_2_change():
         st.session_state["in_kegiatan_2"] = strip_permohonan(cur2)
         st.session_state["prev_permohonan_2"] = cur2
 
+def on_tgl_mulai_change():
+    """
+    UX Pintar (Auto-Follow Date):
+    Saat user memilih/mengubah Tanggal Mulai, otomatis sesuaikan Tanggal Selesai mengikuti Tanggal Mulai
+    agar untuk ST 1 hari user cukup memilih 1 kali saja (dan tidak pernah terjadi Tanggal Selesai < Tanggal Mulai).
+    """
+    d_mulai = st.session_state.get("in_tgl_pelaks_mulai")
+    if d_mulai:
+        st.session_state["in_tgl_pelaks_akhir"] = d_mulai
+
 def get_default_petugas(pegawai_list):
     """Mencari 'Derry Kurniawan' di daftar pegawai sebagai default otomatis."""
     for p in pegawai_list:
@@ -763,7 +860,8 @@ def reset_form_input(pegawai_list=None):
     st.session_state["preset_permohonan_2"] = PRESET_PERMOHONAN_OPTIONS[0]
     for k in (
         "sel_pt1", "sel_pt2", "in_nosurat1", "in_nosurat2",
-        "chk_pt2", "in_nost_opsional", "ms_petugas_st", "sel_lok1", "sel_lok2"
+        "chk_pt2", "in_nost_opsional", "ms_petugas_st", "sel_lok1", "sel_lok2",
+        "in_tgl_pelaks_mulai", "in_tgl_pelaks_akhir", "in_tgl_st_rekap"
     ):
         if k in st.session_state:
             del st.session_state[k]
@@ -918,49 +1016,68 @@ def sync_st_to_rekap_and_perjadin(
     except Exception as e_rek:
         hasil_log["rekap_err"] = str(e_rek)
 
-    # --- B. SINKRONISASI KE SHEET 'DATA PERJADIN' ---
+    # --- B. SINKRONISASI KE SHEET 'DATA PERJADIN' (MENDUKUNG 1 HARI MAUPUN MULTI-HARI s.d.) ---
     try:
         ws_perjadin = find_worksheet_flexible(ss, ["DATA PERJADIN", "PERJADIN"])
-        d_pelaks = parse_indo_date(tgl_pelaksanaan_str)
-        p_row = find_perjadin_row_by_date(ws_perjadin, d_pelaks)
-        if p_row:
-            existing_row_vals = ws_perjadin.row_values(p_row)
-            existing_row_vals += [""] * (11 - len(existing_row_vals))
-
-            cur_luar = str(existing_row_vals[1]).strip().upper() == "TRUE"
-            cur_dalam = str(existing_row_vals[2]).strip().upper() == "TRUE"
-            cur_no_st = str(existing_row_vals[8]).strip()
+        daftar_tgl_pelaks = parse_indo_date_range(tgl_pelaksanaan_str)
+        if daftar_tgl_pelaks:
+            all_perj_vals = ws_perjadin.get_all_values()
+            col_a_cached = [r[0] if r else "" for r in all_perj_vals]
+            batch_payload_perj = []
+            updated_rows = []
+            updated_dates_str = []
 
             is_dalam_kota = ("kota malang" in lokasi_kab_kota.lower())
-            new_luar = True if not is_dalam_kota else cur_luar
-            new_dalam = True if is_dalam_kota else cur_dalam
 
-            # Update B, C, D (LUAR KOTA, DALAM KOTA, TIDAK ADA ST = FALSE)
-            ws_perjadin.update(
-                f"B{p_row}:D{p_row}",
-                [[new_luar, new_dalam, False]],
-                value_input_option="USER_ENTERED"
-            )
+            for d_pelaks in daftar_tgl_pelaks:
+                p_row = find_perjadin_row_by_date(ws_perjadin, d_pelaks, cached_col_a=col_a_cached)
+                if p_row and 1 <= p_row <= len(all_perj_vals):
+                    existing_row_vals = list(all_perj_vals[p_row - 1])
+                    existing_row_vals += [""] * (11 - len(existing_row_vals))
 
-            # Jika hari tersebut Sabtu/Minggu dan status masih rumus default "PREI BOS! MANDEK!",
-            # perbarui rumus Kolom E agar saat D{p_row}=FALSE (ada ST), Kolom E menjadi "" sehingga
-            # otomatis memicu tulisan "BELUM ADA PERJADIN" di Kolom K!
-            if d_pelaks and d_pelaks.weekday() >= 5:
-                cur_status_val = str(existing_row_vals[4]).strip()
-                if cur_status_val in ("", "PREI BOS! MANDEK!", "NGANTOR BOS!"):
-                    formula_e = f'=IF(A{p_row}="", "", IF(D{p_row}=TRUE, IF(WEEKDAY(A{p_row}, 2)>=6, "PREI BOS! MANDEK!", "NGANTOR BOS!"), ""))'
-                    ws_perjadin.update_acell(f"E{p_row}", formula_e)
+                    cur_luar = str(existing_row_vals[1]).strip().upper() == "TRUE"
+                    cur_dalam = str(existing_row_vals[2]).strip().upper() == "TRUE"
+                    cur_no_st = str(existing_row_vals[8]).strip()
 
-            # Update Kolom I (NO ST) jika nomor_st_resmi diisi
-            if nomor_st_resmi:
-                if cur_no_st and nomor_st_resmi not in cur_no_st:
-                    combined_st = f"{cur_no_st}, {nomor_st_resmi}"
-                else:
-                    combined_st = nomor_st_resmi
-                ws_perjadin.update_acell(f"I{p_row}", combined_st)
+                    new_luar = True if not is_dalam_kota else cur_luar
+                    new_dalam = True if is_dalam_kota else cur_dalam
 
-            hasil_log["perjadin_ok"] = True
-            hasil_log["perjadin_row"] = p_row
+                    # 1. Update B, C, D (LUAR KOTA, DALAM KOTA, TIDAK ADA ST = FALSE)
+                    batch_payload_perj.append({
+                        "range": f"B{p_row}:D{p_row}",
+                        "values": [[new_luar, new_dalam, False]]
+                    })
+
+                    # 2. Jika Sabtu/Minggu dan status masih default "PREI BOS! MANDEK!", perbarui rumus Kolom E
+                    if d_pelaks.weekday() >= 5:
+                        cur_status_val = str(existing_row_vals[4]).strip()
+                        if cur_status_val in ("", "PREI BOS! MANDEK!", "NGANTOR BOS!"):
+                            formula_e = f'=IF(A{p_row}="", "", IF(D{p_row}=TRUE, IF(WEEKDAY(A{p_row}, 2)>=6, "PREI BOS! MANDEK!", "NGANTOR BOS!"), ""))'
+                            batch_payload_perj.append({
+                                "range": f"E{p_row}",
+                                "values": [[formula_e]]
+                            })
+
+                    # 3. Update Kolom I (NO ST) jika nomor_st_resmi diisi
+                    if nomor_st_resmi:
+                        if cur_no_st and nomor_st_resmi not in cur_no_st:
+                            combined_st = f"{cur_no_st}, {nomor_st_resmi}"
+                        else:
+                            combined_st = nomor_st_resmi
+                        batch_payload_perj.append({
+                            "range": f"I{p_row}",
+                            "values": [[combined_st]]
+                        })
+
+                    updated_rows.append(p_row)
+                    updated_dates_str.append(format_tanggal_indo(d_pelaks))
+
+            if batch_payload_perj:
+                ws_perjadin.batch_update(batch_payload_perj, value_input_option="USER_ENTERED")
+                hasil_log["perjadin_ok"] = True
+                hasil_log["perjadin_row"] = updated_rows[0] if len(updated_rows) == 1 else f"{updated_rows[0]} s.d. {updated_rows[-1]}"
+                hasil_log["perjadin_rows"] = updated_rows
+                hasil_log["perjadin_dates"] = updated_dates_str
     except Exception as e_perj:
         hasil_log["perjadin_err"] = str(e_perj)
 
@@ -1787,31 +1904,65 @@ with tab_input:
                     st.markdown(f'<div class="info-pill-warn">⚠️ Titik Lokasi {pilihan_lokasi_2} pada <b>{pt_2}</b> kosong di database.</div>', unsafe_allow_html=True)
 
     # -------------------------------------------------------------
-    # KARTU 2: WAKTU PELAKSANAAN & NOMOR ST (OPSIONAL)
+    # KARTU 2: WAKTU PELAKSANAAN (MENDUKUNG 1 HARI MAUPUN RENTANG MULTI-HARI) & NOMOR ST
     # -------------------------------------------------------------
     with st.container(border=True):
-        st.markdown('<div class="section-badge">2️⃣ Waktu Pelaksanaan & Nomor ST (Satu Kemenkeu)</div>', unsafe_allow_html=True)
-        c_wkt1, c_wkt2, c_wkt3 = st.columns([1, 1, 1.2])
+        st.markdown('<div class="section-badge">2️⃣ Waktu Pelaksanaan (1 Hari / Multi-Hari) & Nomor ST</div>', unsafe_allow_html=True)
+        st.caption("💡 **Tips Cepat HP:** Jika kegiatan **1 hari**, cukup pilih **Tanggal Mulai** saja (Tanggal Selesai otomatis mengikuti). Jika **lebih dari 1 hari**, ubah **Tanggal Selesai** sesuai akhir kegiatan.")
+
+        if "in_tgl_pelaks_mulai" not in st.session_state:
+            st.session_state["in_tgl_pelaks_mulai"] = datetime.date.today()
+        if "in_tgl_pelaks_akhir" not in st.session_state:
+            st.session_state["in_tgl_pelaks_akhir"] = st.session_state["in_tgl_pelaks_mulai"]
+
+        # Jaga agar tanggal akhir tidak pernah lebih kecil dari tanggal mulai
+        if st.session_state["in_tgl_pelaks_akhir"] < st.session_state["in_tgl_pelaks_mulai"]:
+            st.session_state["in_tgl_pelaks_akhir"] = st.session_state["in_tgl_pelaks_mulai"]
+
+        c_wkt1, c_wkt2, c_wkt3, c_wkt4 = st.columns([1, 1, 1, 1.25])
         with c_wkt1:
-            tgl_st_rekap = st.date_input("Tanggal ST / Tanggal Lapor*", value=datetime.date.today(), key="in_tgl_st_rekap")
+            tgl_st_rekap = st.date_input(
+                "Tanggal ST / Lapor*",
+                value=datetime.date.today(),
+                key="in_tgl_st_rekap"
+            )
         with c_wkt2:
-            tgl_pelaksanaan = st.date_input("Tanggal Pelaksanaan Tugas*", value=datetime.date.today(), key="in_tgl_pelaks")
+            tgl_pelaksanaan_mulai = st.date_input(
+                "Tanggal Mulai Kegiatan*",
+                key="in_tgl_pelaks_mulai",
+                on_change=on_tgl_mulai_change
+            )
         with c_wkt3:
+            tgl_pelaksanaan_akhir = st.date_input(
+                "Tanggal Akhir Kegiatan*",
+                min_value=tgl_pelaksanaan_mulai,
+                key="in_tgl_pelaks_akhir"
+            )
+        with c_wkt4:
             no_st_opsional = st.text_input(
-                "Nomor ST Satu Kemenkeu (Opsional — Bisa Diisi Nanti di Tab 3):",
-                placeholder="Kosongkan dulu, atau ketik misal: 2013",
+                "No. ST Satu Kemenkeu (Opsional):",
+                placeholder="Kosongkan / ketik misal: 2013",
                 key="in_nost_opsional",
                 help="Karena Nomor ST baru didapat dari Satu Kemenkeu setelah TTE, kamu boleh mengosongkan kolom ini sekarang dan mengisinya nanti lewat Tab 3 dengan 1 klik."
             )
 
-        nama_hari_en = tgl_pelaksanaan.strftime("%A")
-        nama_hari_id = HARI_INDONESIA.get(nama_hari_en, nama_hari_en)
-        tgl_indo_str = format_tanggal_indo(tgl_pelaksanaan)
+        tgl_pelaksanaan = tgl_pelaksanaan_mulai
+        nama_hari_id, tgl_indo_str, durasi_hari = format_hari_tanggal_pelaksanaan(
+            tgl_pelaksanaan_mulai,
+            tgl_pelaksanaan_akhir
+        )
         tgl_st_indo_str = format_tanggal_indo(tgl_st_rekap)
-        preview_no_st_fmt = format_nomor_st_resmi(no_st_opsional, tgl_pelaksanaan.year) if no_st_opsional else "(Menunggu dari Satu Kemenkeu — Bisa diupdate di Tab 3)"
+        preview_no_st_fmt = format_nomor_st_resmi(no_st_opsional, tgl_pelaksanaan_mulai.year) if no_st_opsional else "(Menunggu dari Satu Kemenkeu — Bisa diupdate di Tab 3)"
+
+        badge_durasi = (
+            f"<span style='background:#DBEAFE; color:#1E3A8A; padding:2px 8px; border-radius:6px; font-weight:800;'>1 Hari</span>"
+            if durasi_hari == 1
+            else f"<span style='background:#FEF3C7; color:#92400E; padding:2px 8px; border-radius:6px; font-weight:800;'>{durasi_hari} Hari Berturut-turut (Otomatis Centang {durasi_hari} Baris di DATA PERJADIN)</span>"
+        )
         st.markdown(
-            f'<div class="info-pill">🗓️ <b>Hari / Tanggal Pelaksanaan di ST:</b> {nama_hari_id} / {tgl_indo_str} &nbsp;|&nbsp; '
-            f'🔢 <b>Format Nomor ST:</b> {preview_no_st_fmt}</div>',
+            f'<div class="info-pill">🗓️ <b>Tampilan di Surat Tugas & Database:</b><br>'
+            f'• <b>hari / tanggal :</b> <b>{nama_hari_id} / {tgl_indo_str}</b> &nbsp;{badge_durasi}<br>'
+            f'• <b>Format Nomor ST :</b> {preview_no_st_fmt}</div>',
             unsafe_allow_html=True
         )
 
@@ -1962,7 +2113,7 @@ with tab_input:
                         kegiatan_1,
                         kegiatan_2 if pt_2 else "",
                         nama_hari_id,
-                        format_tanggal_indo(tgl_pelaksanaan),
+                        tgl_indo_str,
                         pilihan_lokasi_1,
                         alamat_pabrik_1,
                         pilihan_lokasi_2 if pt_2 else "",
@@ -1997,19 +2148,20 @@ with tab_input:
                         lokasi_kab_kota=lokasi_kab_final,
                         kecamatan_str=kec_final,
                         petugas_gabung_str=petugas_gabung_str,
-                        tgl_pelaksanaan_str=format_tanggal_indo(tgl_pelaksanaan),
+                        tgl_pelaksanaan_str=tgl_indo_str,
                         nomor_st_resmi=nomor_st_clean
                     )
 
                     st.toast(f"ST #{next_no} tersimpan di 3 Sheet sekaligus!", icon="🎉")
+                    jml_hari_tercentang = len(sync_res.get("perjadin_rows", []))
                     msg_perjadin = (
-                        f"Baris tanggal **{format_tanggal_indo(tgl_pelaksanaan)}** di `DATA PERJADIN` (Baris {sync_res.get('perjadin_row')}) otomatis tercentang!"
+                        f"**{jml_hari_tercentang} Hari Pelaksanaan** (`{nama_hari_id} / {tgl_indo_str}`, Baris {sync_res.get('perjadin_row')}) di `DATA PERJADIN` otomatis tercentang!"
                         if sync_res.get("perjadin_ok")
                         else "Tanggal pelaksanaan berada di luar rentang kalender `DATA PERJADIN` saat ini."
                     )
                     st.success(
                         f"✅ **Berhasil Simpan Sekali Klik ke 3 Sheet!**\n"
-                        f"- **Sheet1 (Database ST):** Tersimpan sebagai No. Urut **#{next_no}** ({nama_pabrik_gabung})\n"
+                        f"- **Sheet1 (Database ST):** Tersimpan sebagai No. Urut **#{next_no}** ({nama_pabrik_gabung} — `{nama_hari_id} / {tgl_indo_str}`)\n"
                         f"- **Sheet `{REKAP_SHEET_NAME}`:** Otomatis terisi (`{lokasi_kab_final}` — Kec. `{kec_final}`)\n"
                         f"- **Sheet `DATA PERJADIN`:** {msg_perjadin}"
                     )
@@ -2028,7 +2180,7 @@ with tab_input:
                         "kegiatan_1": kegiatan_1,
                         "kegiatan_2": kegiatan_2 if pt_2 else "",
                         "hari": nama_hari_id,
-                        "tgl_pelaksanaan": format_tanggal_indo(tgl_pelaksanaan),
+                        "tgl_pelaksanaan": tgl_indo_str,
                         "alamat_pabrik_1": alamat_pabrik_1,
                         "alamat_pabrik_2": alamat_pabrik_2 if pt_2 else "",
                         "daftar_petugas": data_petugas_terpilih,
@@ -2048,7 +2200,8 @@ with tab_input:
             try:
                 buf = generate_docx_buffer(data_gen)
                 docx_bytes_val = buf.getvalue()
-                file_name_out = f"ST_{data_gen['no_urut']}_{data_gen['pt_1'].replace(' ', '_')}_{data_gen['tgl_pelaksanaan'].replace(' ', '_')}.docx"
+                safe_tgl_fn = data_gen['tgl_pelaksanaan'].replace('s.d.', 'sd').replace('s.d', 'sd').replace(' ', '_')
+                file_name_out = f"ST_{data_gen['no_urut']}_{data_gen['pt_1'].replace(' ', '_')}_{safe_tgl_fn}.docx"
                 col_dl1, col_dl2 = st.columns([2, 1])
                 with col_dl1:
                     render_direct_docx_download(
@@ -2195,8 +2348,25 @@ with tab_riwayat:
                         edit_alamat1 = st.text_area("Alamat Pabrik 1*", value=selected_item["alamat_pabrik_1"], height=76)
                     
                     with col_e2:
-                        edit_hari = st.text_input("Hari Pelaksanaan*", value=selected_item["hari"])
-                        edit_tgl_pelaks = st.text_input("Tanggal Pelaksanaan Tugas*", value=selected_item["tgl_pelaksanaan"])
+                        parsed_existing_range = parse_indo_date_range(selected_item["tgl_pelaksanaan"])
+                        def_edit_start = parsed_existing_range[0] if parsed_existing_range else datetime.date.today()
+                        def_edit_end = parsed_existing_range[-1] if parsed_existing_range else def_edit_start
+                        st.markdown("**🗓️ Ubah Cepat Tanggal Pelaksanaan (1 Hari / Multi-Hari):**")
+                        ce_d1, ce_d2 = st.columns(2)
+                        with ce_d1:
+                            edit_d_mulai = st.date_input("Tgl Mulai:", value=def_edit_start, key=f"ed_dm_{selected_item['no_urut']}")
+                        with ce_d2:
+                            edit_d_akhir = st.date_input("Tgl Akhir:", value=max(def_edit_start, def_edit_end), min_value=edit_d_mulai, key=f"ed_da_{selected_item['no_urut']}")
+                        use_auto_date_edit = st.checkbox(
+                            "Gunakan hasil kalkulasi Hari & Tanggal dari pemilih di atas saat Simpan",
+                            value=False,
+                            key=f"ed_use_auto_{selected_item['no_urut']}",
+                            help="Centang ini jika kamu ingin mengubah tanggal pelaksanaan ST menjadi rentang tanggal baru secara otomatis."
+                        )
+                        auto_h_edit, auto_t_edit, _ = format_hari_tanggal_pelaksanaan(edit_d_mulai, edit_d_akhir)
+                        st.caption(f"Pratinjau kalkulasi otomatis: **{auto_h_edit} / {auto_t_edit}**")
+                        edit_hari = st.text_input("Hari Pelaksanaan (Teks di ST)*", value=selected_item["hari"])
+                        edit_tgl_pelaks = st.text_input("Tanggal Pelaksanaan Tugas (Teks di ST)*", value=selected_item["tgl_pelaksanaan"])
                         edit_no_st_resmi = st.text_input("Nomor ST Resmi (Satu Kemenkeu):", value=selected_item.get("nomor_st_resmi", ""))
                         
                         cur_p_names = [p["nama"] for p in selected_item["daftar_petugas"] if p["nama"] in list_pegawai]
@@ -2233,6 +2403,8 @@ with tab_riwayat:
                                 else:
                                     pad_p.extend(["", "", ""])
 
+                            if use_auto_date_edit:
+                                edit_hari, edit_tgl_pelaks, _ = format_hari_tanggal_pelaksanaan(edit_d_mulai, edit_d_akhir)
                             no_st_fmt_edit = format_nomor_st_resmi(edit_no_st_resmi)
                             tgl_st_rec = selected_item.get("tgl_st_resmi") or edit_tgl_surat1 or edit_tgl_pelaks
 
@@ -2541,6 +2713,10 @@ with tab_perjadin:
                         in_dalam = st.checkbox("Dalam Kota (Kota Malang)", value=sel_perj["dalam_kota"])
                         in_sudah_masuk = st.checkbox("Dana Sudah Masuk Rekening? (Kolom F)", value=sel_perj["sudah_masuk"])
                         in_tgl_cair = st.text_input("Tanggal Cair (Kolom H - Opsional):", value=sel_perj["tgl_cair"], placeholder="Contoh: 15 Oktober 2026")
+                        apply_same_nost = st.checkbox(
+                            "⚡ Terapkan juga ID Kegiatan & Status ini ke seluruh tanggal lain yang memiliki Nomor ST yang sama (Praktis untuk ST Multi-Hari)",
+                            value=bool(sel_perj["no_st"].strip())
+                        )
 
                     btn_save_perj = st.form_submit_button("💾 Simpan ID Perjadin & Perbarui Status", type="primary", use_container_width=True)
 
@@ -2554,26 +2730,41 @@ with tab_perjadin:
                             no_st_clean_p = format_nomor_st_resmi(in_no_st_perj)
                             tidak_ada_st_val = False if (in_luar or in_dalam or no_st_clean_p or in_id_keg.strip()) else True
 
-                            if in_status_perj == "(Biarkan Kosong / Otomatis Rumus)":
-                                status_cell_val = f'=IF(A{r_p}="", "", IF(D{r_p}=TRUE, IF(WEEKDAY(A{r_p}, 2)>=6, "PREI BOS! MANDEK!", "NGANTOR BOS!"), ""))'
-                            else:
-                                status_cell_val = in_status_perj
+                            target_rows_perj = [sel_perj]
+                            if apply_same_nost and no_st_clean_p:
+                                for cand_p in perjadin_list_global:
+                                    if cand_p["row_num"] != r_p and no_st_clean_p in cand_p["no_st"]:
+                                        target_rows_perj.append(cand_p)
 
-                            # Update Kolom B, C, D, E, F (Jangan timpa Kolom G karena berisi rumus NOMINAL!)
-                            ws_p.update(
-                                f"B{r_p}:F{r_p}",
-                                [[in_luar, in_dalam, tidak_ada_st_val, status_cell_val, in_sudah_masuk]],
-                                value_input_option="USER_ENTERED"
-                            )
-                            # Update Kolom H, I, J (Jangan timpa Kolom K karena berisi rumus KETERANGAN!)
-                            ws_p.update(
-                                f"H{r_p}:J{r_p}",
-                                [[in_tgl_cair.strip(), no_st_clean_p, in_id_keg.strip()]],
-                                value_input_option="USER_ENTERED"
-                            )
+                            batch_update_perj_b = []
+                            for tp in target_rows_perj:
+                                tr = tp["row_num"]
+                                if in_status_perj == "(Biarkan Kosong / Otomatis Rumus)":
+                                    status_cell_val = f'=IF(A{tr}="", "", IF(D{tr}=TRUE, IF(WEEKDAY(A{tr}, 2)>=6, "PREI BOS! MANDEK!", "NGANTOR BOS!"), ""))'
+                                else:
+                                    status_cell_val = in_status_perj
 
-                            st.toast(f"Data Perjadin tanggal {sel_perj['tanggal_str']} berhasil diperbarui!", icon="🚗")
-                            st.success(f"✅ Berhasil mengupdate Perjadin tanggal **{sel_perj['tanggal_str']}**! Status **BELUM ADA PERJADIN** otomatis terupdate.")
+                                is_primary_row = (tr == r_p)
+                                b_val = in_luar if is_primary_row else tp["luar_kota"]
+                                c_val = in_dalam if is_primary_row else tp["dalam_kota"]
+                                d_val = tidak_ada_st_val if is_primary_row else False
+                                i_val = no_st_clean_p if is_primary_row else tp["no_st"]
+
+                                # Update Kolom B, C, D, E, F (Jangan timpa Kolom G karena berisi rumus NOMINAL!)
+                                batch_update_perj_b.append({
+                                    "range": f"B{tr}:F{tr}",
+                                    "values": [[b_val, c_val, d_val, status_cell_val, in_sudah_masuk]]
+                                })
+                                # Update Kolom H, I, J (Jangan timpa Kolom K karena berisi rumus KETERANGAN!)
+                                batch_update_perj_b.append({
+                                    "range": f"H{tr}:J{tr}",
+                                    "values": [[in_tgl_cair.strip(), i_val, in_id_keg.strip()]]
+                                })
+
+                            ws_p.batch_update(batch_update_perj_b, value_input_option="USER_ENTERED")
+                            tgl_updated_list = ", ".join([tp["tanggal_str"] for tp in target_rows_perj])
+                            st.toast(f"Data Perjadin ({len(target_rows_perj)} hari) berhasil diperbarui!", icon="🚗")
+                            st.success(f"✅ Berhasil mengupdate Perjadin untuk **{len(target_rows_perj)} hari ({tgl_updated_list})**! Status **BELUM ADA PERJADIN** otomatis terupdate.")
                             st.cache_data.clear()
                             st.rerun()
                     except Exception as e_sp:
@@ -2654,11 +2845,14 @@ with tab_perjadin:
 
                             pet_gab_val = ", ".join([p["nama"] for p in item["daftar_petugas"]])
                             tgl_pel_val = item["tgl_pelaksanaan"]
-                            d_pel_obj = parse_indo_date(tgl_pel_val)
+                            d_pel_list = parse_indo_date_range(tgl_pel_val)
 
                             no_st_val = item.get("nomor_st_resmi", "").strip()
-                            if not no_st_val and d_pel_obj and d_pel_obj in date_to_nost_perj:
-                                no_st_val = date_to_nost_perj[d_pel_obj]
+                            if not no_st_val and d_pel_list:
+                                for d_cand in d_pel_list:
+                                    if d_cand in date_to_nost_perj:
+                                        no_st_val = date_to_nost_perj[d_cand]
+                                        break
 
                             rekap_batch.append([
                                 int(no_u) if str(no_u).isdigit() else no_u,
@@ -2672,22 +2866,23 @@ with tab_perjadin:
                                 no_st_val
                             ])
 
-                            if d_pel_obj and d_pel_obj in date_to_perj_row:
-                                p_rnum, p_rvals = date_to_perj_row[d_pel_obj]
-                                cur_b = p_rvals[1].strip().upper() == "TRUE"
-                                cur_c = p_rvals[2].strip().upper() == "TRUE"
-                                cur_d = p_rvals[3].strip().upper() == "TRUE"
-                                is_dk = ("kota malang" in lok_val.lower())
-                                need_b = True if not is_dk else cur_b
-                                need_c = True if is_dk else cur_c
-                                if (need_b != cur_b) or (need_c != cur_c) or cur_d:
-                                    p_rvals[1] = "TRUE" if need_b else "FALSE"
-                                    p_rvals[2] = "TRUE" if need_c else "FALSE"
-                                    p_rvals[3] = "FALSE"
-                                    batch_perjadin_map[p_rnum] = {
-                                        "range": f"B{p_rnum}:D{p_rnum}",
-                                        "values": [[need_b, need_c, False]]
-                                    }
+                            for d_pel_obj in d_pel_list:
+                                if d_pel_obj and d_pel_obj in date_to_perj_row:
+                                    p_rnum, p_rvals = date_to_perj_row[d_pel_obj]
+                                    cur_b = p_rvals[1].strip().upper() == "TRUE"
+                                    cur_c = p_rvals[2].strip().upper() == "TRUE"
+                                    cur_d = p_rvals[3].strip().upper() == "TRUE"
+                                    is_dk = ("kota malang" in lok_val.lower())
+                                    need_b = True if not is_dk else cur_b
+                                    need_c = True if is_dk else cur_c
+                                    if (need_b != cur_b) or (need_c != cur_c) or cur_d:
+                                        p_rvals[1] = "TRUE" if need_b else "FALSE"
+                                        p_rvals[2] = "TRUE" if need_c else "FALSE"
+                                        p_rvals[3] = "FALSE"
+                                        batch_perjadin_map[p_rnum] = {
+                                            "range": f"B{p_rnum}:D{p_rnum}",
+                                            "values": [[need_b, need_c, False]]
+                                        }
 
                         batch_perjadin_payload = list(batch_perjadin_map.values())
                         if batch_perjadin_payload:
