@@ -446,6 +446,133 @@ st.markdown("""
         transform: translateY(-1px);
     }
 
+    /* 10. Segmented Pill Control untuk Radio Filter & Pilihan (Ramah Sentuhan Jempol di HP) */
+    div[role="radiogroup"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+        background-color: #F1F5F9 !important;
+        padding: 6px !important;
+        border-radius: 14px !important;
+        border: 1.5px solid #CBD5E1 !important;
+        margin-top: 4px !important;
+        margin-bottom: 8px !important;
+    }
+    div[role="radiogroup"] > label {
+        background-color: #FFFFFF !important;
+        border: 1.5px solid #CBD5E1 !important;
+        border-radius: 10px !important;
+        padding: 8px 14px !important;
+        min-height: 44px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        cursor: pointer !important;
+        transition: all 0.16s ease !important;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+        margin: 0 !important;
+        flex: 1 1 auto !important;
+    }
+    div[role="radiogroup"] > label:hover {
+        background-color: #EFF6FF !important;
+        border-color: #1E3A8A !important;
+    }
+    div[role="radiogroup"] > label:has(input:checked) {
+        background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%) !important;
+        border-color: #0A192F !important;
+        border-bottom: 3px solid #F59E0B !important;
+        box-shadow: 0 4px 12px rgba(30, 58, 138, 0.22) !important;
+    }
+    div[role="radiogroup"] > label:has(input:checked) p,
+    div[role="radiogroup"] > label:has(input:checked) span {
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        font-weight: 800 !important;
+    }
+
+    /* 11. Touch-Friendly Checkbox Cards (Mudah Ditekan Jempol di Layar HP) */
+    div[data-testid="stCheckbox"] {
+        background-color: #F8FAFC !important;
+        border: 1.5px solid #CBD5E1 !important;
+        border-radius: 12px !important;
+        padding: 8px 13px !important;
+        min-height: 46px !important;
+        display: flex !important;
+        align-items: center !important;
+        margin-bottom: 6px !important;
+        transition: all 0.15s ease !important;
+    }
+    div[data-testid="stCheckbox"]:hover {
+        background-color: #EFF6FF !important;
+        border-color: #1E3A8A !important;
+    }
+    div[data-testid="stCheckbox"]:has(input:checked) {
+        background-color: #EFF6FF !important;
+        border-color: #1E3A8A !important;
+        border-left: 4px solid #F59E0B !important;
+        box-shadow: 0 2px 8px rgba(30, 58, 138, 0.08) !important;
+    }
+    div[data-testid="stCheckbox"] label {
+        width: 100% !important;
+        cursor: pointer !important;
+        font-weight: 700 !important;
+    }
+
+    /* 12. Bento Grid Metric Cards (Highlight Hari Penugasan Aktif di Tab 3) */
+    .bento-kpi-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+        gap: 12px !important;
+        margin-top: 4px !important;
+        margin-bottom: 12px !important;
+    }
+    .bento-kpi-card {
+        background: #FFFFFF !important;
+        border: 1.5px solid #E2E8F0 !important;
+        border-left: 5px solid #1E3A8A !important;
+        border-radius: 16px !important;
+        padding: 14px 16px !important;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
+    }
+    .bento-kpi-card.highlight-active {
+        background: linear-gradient(135deg, #0A192F 0%, #1E3A8A 100%) !important;
+        border: 1.5px solid #0A192F !important;
+        border-left: 6px solid #F59E0B !important;
+        box-shadow: 0 10px 24px -4px rgba(30, 58, 138, 0.3) !important;
+    }
+    .bento-kpi-card .kpi-label {
+        font-size: 0.78rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.4px !important;
+        color: #475569 !important;
+        margin-bottom: 4px !important;
+    }
+    .bento-kpi-card.highlight-active .kpi-label {
+        color: #DBEAFE !important;
+        -webkit-text-fill-color: #DBEAFE !important;
+    }
+    .bento-kpi-card .kpi-val {
+        font-size: 1.45rem !important;
+        font-weight: 800 !important;
+        color: #0A192F !important;
+        line-height: 1.2 !important;
+    }
+    .bento-kpi-card.highlight-active .kpi-val {
+        color: #FBBF24 !important;
+        -webkit-text-fill-color: #FBBF24 !important;
+    }
+    .bento-kpi-card .kpi-sub {
+        font-size: 0.76rem !important;
+        color: #64748B !important;
+        margin-top: 3px !important;
+        font-weight: 600 !important;
+    }
+    .bento-kpi-card.highlight-active .kpi-sub {
+        color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+    }
+
     /* Sidebar tetap bersih & terang */
     section[data-testid="stSidebar"] {
         background-color: #FFFFFF !important;
@@ -1279,6 +1406,11 @@ def repair_shifted_rows_in_sheet1(ws=None):
 
 @st.cache_data(ttl=15)
 def load_riwayat_data():
+    """
+    Fungsi Murni READ (Tanpa Operasi Write API) untuk memuat riwayat Surat Tugas dari Sheet1.
+    Dilengkapi pembacaan cerdas (in-memory slice) jika ada baris yang bergeser ke kolom AG,
+    sehingga UI tetap memuat cepat tanpa risiko timeout atau silent crash.
+    """
     try:
         ss = get_spreadsheet()
         ws = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
@@ -1286,17 +1418,6 @@ def load_riwayat_data():
         if len(all_rows) <= 1:
             return []
 
-        # Deteksi jika ada baris yang bergeser ke Kolom AG (seperti ST #145) -> perbaiki otomatis di GSheet!
-        has_shifted = False
-        for r_chk in all_rows[1:]:
-            c_a = r_chk[0].strip() if len(r_chk) > 0 else ""
-            if not c_a and len(r_chk) > 33 and r_chk[32].strip().isdigit() and r_chk[33].strip():
-                has_shifted = True
-                break
-        if has_shifted:
-            if repair_shifted_rows_in_sheet1(ws):
-                all_rows = ws.get_all_values()
-        
         data_rows = all_rows[1:]
         riwayat = []
         for orig_idx, r_raw in enumerate(data_rows):
@@ -1305,7 +1426,7 @@ def load_riwayat_data():
             sheet_row_num = orig_idx + 2
             col_a_val = r_raw[0].strip() if len(r_raw) > 0 else ""
 
-            # Fallback ekstra aman: jika masih ada baris yang bergeser ke kolom AG (indeks 32), tetap baca penuh!
+            # Fallback in-memory aman: jika ada baris yang sempat bergeser ke kolom AG, tetap baca penuh
             if not col_a_val:
                 shifted_slice = None
                 for s_idx in range(1, len(r_raw) - 1):
@@ -1317,7 +1438,7 @@ def load_riwayat_data():
                 r = shifted_slice + [""] * (37 - len(shifted_slice))
             else:
                 r = r_raw[:37] + [""] * max(0, 37 - len(r_raw[:37]))
-            
+
             daftar_petugas = []
             for i in range(6):
                 base_idx = 9 + (i * 3)
@@ -1332,13 +1453,13 @@ def load_riwayat_data():
                         "pangkat": pangkat_p,
                         "jabatan": jabatan_p
                     })
-            
+
             no_st = r[0].strip()
             pt_1 = r[1].strip()
             tgl_pelaks = r[30].strip()
             p1_nama = daftar_petugas[0]["nama"] if daftar_petugas else "-"
             label_display = f"No. {no_st} | {pt_1} | {tgl_pelaks} (Petugas: {p1_nama})"
-            
+
             riwayat.append({
                 "label": label_display,
                 "row_num": sheet_row_num,
@@ -1370,16 +1491,18 @@ def load_riwayat_data():
 @st.cache_data(ttl=15)
 def load_perjadin_and_rekap_data():
     """
-    Memuat data dari sheet DATA PERJADIN dan REKAP BAGIAN UMUM untuk Tab 3,
-    sekaligus menjalankan Auto-Heal (sinkronisasi otomatis) apabila ada ST di REKAP BAGIAN UMUM
-    yang tanggal pelaksanaannya atau Nomor ST-nya belum masuk ke DATA PERJADIN.
+    Fungsi Murni READ (Tanpa Operasi Write / batch_update di Dalam Cache) untuk memuat data
+    DATA PERJADIN dan REKAP BAGIAN UMUM secara cepat, stabil, dan bebas timeout.
+    Aturan Deteksi Peringatan:
+    Jika (b_luar or c_dalam or i_nost) bernilai True DAN not j_idkeg (ID Kegiatan kosong)
+    DAN not k_ket (Keterangan belum diisi manual), maka wajib k_ket = "BELUM ADA PERJADIN"
+    tanpa memedulikan isi kolom Status (e_status).
     """
     ss = get_spreadsheet()
     perjadin_rows = []
     rekap_rows = []
-    ws_p = None
 
-    # 1. Baca DATA PERJADIN
+    # 1. Baca DATA PERJADIN (Murni READ)
     try:
         ws_p = find_worksheet_flexible(ss, ["DATA PERJADIN", "PERJADIN"])
         raw_p = ws_p.get_all_values()
@@ -1396,8 +1519,13 @@ def load_perjadin_and_rekap_data():
             i_nost = r_pad[8].strip()
             j_idkeg = r_pad[9].strip()
             k_ket = r_pad[10].strip()
-            if not k_ket and (b_luar or c_dalam or i_nost) and not j_idkeg and not e_status:
+
+            # Solusi Bug #1: Tanpa syarat `not e_status`!
+            # Selama (b_luar or c_dalam or i_nost) True DAN ID Kegiatan kosong DAN Keterangan kosong,
+            # wajib muncul "BELUM ADA PERJADIN" meskipun kolom Status berisi rumus/teks bawaan.
+            if (b_luar or c_dalam or i_nost) and not j_idkeg and not k_ket:
                 k_ket = "BELUM ADA PERJADIN"
+
             perjadin_rows.append({
                 "row_num": idx,
                 "tanggal_str": tgl_str,
@@ -1416,83 +1544,54 @@ def load_perjadin_and_rekap_data():
     except Exception:
         pass
 
-    # 2. Baca REKAP BAGIAN UMUM (jika sudah ada)
+    # 2. Baca REKAP BAGIAN UMUM (Murni READ)
     try:
-        all_titles = [w.title.strip().upper() for w in ss.worksheets()]
-        if any(t in ("REKAP BAGIAN UMUM", "LAPORAN BAGIAN UMUM", "REKAP ST") for t in all_titles):
-            ws_r = get_or_create_rekap_worksheet(ss)
-            raw_r = ws_r.get_all_values()
-            for idx, r in enumerate(raw_r[1:], start=2):
-                r_pad = r + [""] * (9 - len(r))
-                if not r_pad[0].strip() and not r_pad[3].strip():
-                    continue
-                rekap_rows.append({
-                    "row_num": idx,
-                    "no": r_pad[0].strip(),
-                    "tanggal": r_pad[1].strip(),
-                    "perihal": r_pad[2].strip(),
-                    "nama_pabrik": r_pad[3].strip(),
-                    "lokasi": r_pad[4].strip(),
-                    "kecamatan": r_pad[5].strip(),
-                    "petugas": r_pad[6].strip(),
-                    "tgl_pelaksanaan": r_pad[7].strip(),
-                    "nomor_st": r_pad[8].strip()
-                })
+        ws_r = find_worksheet_flexible(ss, ["REKAP BAGIAN UMUM", "LAPORAN BAGIAN UMUM", "REKAP ST"])
+        raw_r = ws_r.get_all_values()
+        for idx, r in enumerate(raw_r[1:], start=2):
+            r_pad = r + [""] * (9 - len(r))
+            if not r_pad[0].strip() and not r_pad[3].strip():
+                continue
+            rekap_rows.append({
+                "row_num": idx,
+                "no": r_pad[0].strip(),
+                "tanggal": r_pad[1].strip(),
+                "perihal": r_pad[2].strip(),
+                "nama_pabrik": r_pad[3].strip(),
+                "lokasi": r_pad[4].strip(),
+                "kecamatan": r_pad[5].strip(),
+                "petugas": r_pad[6].strip(),
+                "tgl_pelaksanaan": r_pad[7].strip(),
+                "nomor_st": r_pad[8].strip()
+            })
     except Exception:
         pass
 
-    # 3. AUTO-HEAL: Jika ada ST di REKAP BAGIAN UMUM yang belum tercentang / belum masuk NO ST-nya di DATA PERJADIN,
-    #    otomatis sinkronkan ke DATA PERJADIN via batch_update!
-    if ws_p is not None and perjadin_rows and rekap_rows:
-        try:
-            perj_by_date = {p["date_obj"]: p for p in perjadin_rows if p.get("date_obj")}
-            auto_heal_batch = []
-            for r_item in rekap_rows:
-                d_list = parse_indo_date_range(r_item.get("tgl_pelaksanaan", ""))
-                is_dk = ("kota malang" in r_item.get("lokasi", "").lower())
-                r_nost = r_item.get("nomor_st", "").strip()
-                for d_pel in d_list:
-                    if d_pel and d_pel in perj_by_date:
-                        p_target = perj_by_date[d_pel]
-                        p_rnum = p_target["row_num"]
-                        need_check = (not p_target["luar_kota"] and not p_target["dalam_kota"]) or p_target["tidak_ada_st"]
-                        merged_nost = merge_nomor_st_cell(p_target["no_st"], r_nost) if r_nost else p_target["no_st"]
-                        need_nost_update = (merged_nost != p_target["no_st"])
-
-                        if need_check:
-                            new_b = True if not is_dk else False
-                            new_c = True if is_dk else False
-                            auto_heal_batch.append({
-                                "range": f"B{p_rnum}:D{p_rnum}",
-                                "values": [[new_b, new_c, False]]
-                            })
-                            p_target["luar_kota"] = new_b
-                            p_target["dalam_kota"] = new_c
-                            p_target["tidak_ada_st"] = False
-                            if not p_target["nominal"]:
-                                p_target["nominal"] = "100.000" if (new_b and d_pel.month == 10) else ("50.000" if (new_c and d_pel.month == 10) else p_target["nominal"])
-                            if d_pel.weekday() >= 5 and p_target["status"] in ("", "PREI BOS! MANDEK!", "NGANTOR BOS!"):
-                                formula_e = f'=IF(A{p_rnum}="", "", IF(D{p_rnum}=TRUE, IF(WEEKDAY(A{p_rnum}, 2)>=6, "PREI BOS! MANDEK!", "NGANTOR BOS!"), ""))'
-                                auto_heal_batch.append({
-                                    "range": f"E{p_rnum}",
-                                    "values": [[formula_e]]
-                                })
-                                p_target["status"] = ""
-
-                        if need_nost_update:
-                            auto_heal_batch.append({
-                                "range": f"I{p_rnum}",
-                                "values": [[merged_nost]]
-                            })
-                            p_target["no_st"] = merged_nost
-
-                        if ( p_target["luar_kota"] or p_target["dalam_kota"] or p_target["no_st"] ) and not p_target["id_kegiatan"] and not p_target["status"]:
-                            p_target["keterangan"] = "BELUM ADA PERJADIN"
-
-            if auto_heal_batch:
-                ws_p.batch_update(auto_heal_batch, value_input_option="USER_ENTERED")
-        except Exception:
-            pass
+    # 3. Cross-Reference In-Memory (100% di RAM Python, 0% API Write / 0% Risiko Timeout):
+    #    Jika ada penugasan di REKAP BAGIAN UMUM pada tanggal tertentu yang di DATA PERJADIN
+    #    belum tercentang, lengkapi status tampilan di memori agar langsung muncul di Tab 3!
+    if perjadin_rows and rekap_rows:
+        perj_by_date = {p["date_obj"]: p for p in perjadin_rows if p.get("date_obj")}
+        for r_item in rekap_rows:
+            d_list = parse_indo_date_range(r_item.get("tgl_pelaksanaan", ""))
+            is_dk = ("kota malang" in r_item.get("lokasi", "").lower())
+            r_nost = r_item.get("nomor_st", "").strip()
+            for d_pel in d_list:
+                if d_pel and d_pel in perj_by_date:
+                    p_target = perj_by_date[d_pel]
+                    if not p_target["luar_kota"] and not p_target["dalam_kota"]:
+                        p_target["luar_kota"] = not is_dk
+                        p_target["dalam_kota"] = is_dk
+                        p_target["tidak_ada_st"] = False
+                    if r_nost:
+                        p_target["no_st"] = merge_nomor_st_cell(p_target["no_st"], r_nost)
+                    if not p_target["nominal"]:
+                        if p_target["luar_kota"]:
+                            p_target["nominal"] = "100.000" if d_pel.month == 10 else ("250.000" if d_pel.month <= 8 else "410.000")
+                        elif p_target["dalam_kota"]:
+                            p_target["nominal"] = "50.000" if d_pel.month == 10 else "100.000"
+                    if (p_target["luar_kota"] or p_target["dalam_kota"] or p_target["no_st"]) and not p_target["id_kegiatan"] and not p_target["keterangan"]:
+                        p_target["keterangan"] = "BELUM ADA PERJADIN"
 
     return perjadin_rows, rekap_rows
 
@@ -1510,7 +1609,9 @@ perjadin_list_global, rekap_list_global = load_perjadin_and_rekap_data()
 # Hitung Nomor Urut ST Berikutnya & Indikator Perjadin
 existing_nums_global = [int(item["no_urut"]) for item in riwayat_list_global if str(item["no_urut"]).isdigit()]
 next_no_preview = max(existing_nums_global) + 1 if existing_nums_global else 1
+jml_hari_penugasan_aktif = sum(1 for p in perjadin_list_global if p["luar_kota"] or p["dalam_kota"] or p["no_st"] or p["keterangan"] == "BELUM ADA PERJADIN")
 jml_belum_perjadin = sum(1 for p in perjadin_list_global if p["keterangan"] == "BELUM ADA PERJADIN")
+jml_sudah_id_perjadin = sum(1 for p in perjadin_list_global if (p["luar_kota"] or p["dalam_kota"] or p["no_st"]) and p["id_kegiatan"])
 jml_st_belum_nomor = sum(1 for r in rekap_list_global if not r["nomor_st"])
 
 # ==========================================
@@ -2774,40 +2875,62 @@ with tab_riwayat:
                         st.error(f"Gagal menghapus baris dari Google Sheets: {err_del}")
 
 # ==========================================
-# TAB 3: MONITORING PERJADIN & REKAP BAGIAN UMUM (ZERO DOUBLE WORK)
+# TAB 3: MONITORING PERJADIN & REKAP BAGIAN UMUM (BENTO GRID + SOFT GLASSMORPHISM)
 # ==========================================
 with tab_perjadin:
-    st.markdown("""
-    <div class="info-pill" style="background:#EFF6FF; border-left: 4px solid #1E3A8A; padding: 11px 15px;">
-        💡 <b>Arsitektur Zero-Double-Work (Cukup 1x Kerja):</b><br>
-        • <b>Tahap 1 (Saat Buat ST di Tab 1):</b> Data otomatis masuk ke <code>REKAP BAGIAN UMUM</code> & mencentang tanggal di <code>DATA PERJADIN</code> (memicu pengingat <b>BELUM ADA PERJADIN</b>).<br>
-        • <b>Tahap 2 (Saat Nomor ST Keluar dari Satu Kemenkeu):</b> Ketik angkanya saja di bawah (misal <code>2013</code>) -> otomatis masuk ke <code>REKAP BAGIAN UMUM</code> & <code>DATA PERJADIN</code>, lalu tinggal Copy tabelnya untuk dikirim ke Bagian Umum.<br>
-        • <b>Tahap 3 (Saat ID Kegiatan Perjadin Keluar dari Bagian Umum):</b> Input <code>ID KEGIATAN</code> di bawah -> peringatan <b>BELUM ADA PERJADIN</b> otomatis hilang & status berubah!
+    # Bento KPI Dashboard Strip — Highlight Tebal pada Metrik "Hari Penugasan Aktif"
+    st.markdown(f"""
+    <div class="bento-kpi-grid">
+        <div class="bento-kpi-card highlight-active">
+            <div class="kpi-label">🔥 Hari Penugasan Aktif</div>
+            <div class="kpi-val">{jml_hari_penugasan_aktif} Hari</div>
+            <div class="kpi-sub">Total Kalender ST Luar Kota & Dalam Kota</div>
+        </div>
+        <div class="bento-kpi-card" style="border-left-color: #F59E0B;">
+            <div class="kpi-label">⚠️ Belum Ada ID Perjadin</div>
+            <div class="kpi-val" style="color: #B45309 !important;">{jml_belum_perjadin} Hari</div>
+            <div class="kpi-sub">Menunggu Input ID Kegiatan Bagian Umum</div>
+        </div>
+        <div class="bento-kpi-card" style="border-left-color: #10B981;">
+            <div class="kpi-label">✅ Sudah Ada ID Perjadin</div>
+            <div class="kpi-val" style="color: #047857 !important;">{jml_sudah_id_perjadin} Hari</div>
+            <div class="kpi-sub">ID Kegiatan Lengkap & Terverifikasi</div>
+        </div>
+        <div class="bento-kpi-card" style="border-left-color: #3B82F6;">
+            <div class="kpi-label">📝 Menunggu No. ST Resmi</div>
+            <div class="kpi-val" style="color: #1D4ED8 !important;">{jml_st_belum_nomor} ST</div>
+            <div class="kpi-sub">Dari Total {len(rekap_list_global)} Baris Rekap Bagian Umum</div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     sub_rekap_st, sub_id_perjadin, sub_sync_massal = st.tabs([
-        f"📋 A. Input Nomor ST & Copy Laporan Bagian Umum ({len(rekap_list_global)} Baris)",
-        f"🚗 B. Update ID Kegiatan & Status Perjadin ({jml_belum_perjadin} Belum ID)",
-        "🔄 C. Sinkronisasi / Tarik Otomatis Data Lama"
+        f"📋 A. Input Nomor ST & Rekap Umum ({len(rekap_list_global)} ST)",
+        f"🚗 B. Update ID Kegiatan Perjadin ({jml_belum_perjadin} Belum ID)",
+        "🔄 C. Sinkronisasi Massal & Backfill"
     ])
 
     # ------------------------------------------------------------------
-    # SUB-TAB A: INPUT CEPAT NOMOR ST (SATU KEMENKEU) & COPY KE BAGIAN UMUM
+    # SUB-TAB A: BENTO GRID INPUT CEPAT NOMOR ST (SATU KEMENKEU) & COPY LAPORAN
     # ------------------------------------------------------------------
     with sub_rekap_st:
         with st.container(border=True):
-            st.markdown('<div class="section-badge">1️⃣ Isi Cepat Nomor ST dari Satu Kemenkeu (Otomatis Update 3 Sheet)</div>', unsafe_allow_html=True)
-            st.caption("Pilih ST yang baru mendapat nomor dari Satu Kemenkeu. Cukup ketik angkanya saja (contoh: `2041`), pilih apakah ditandatangani **a.n. Kepala Kantor** (`ST-xx/KBC.1201/KBC.120101/2026`) atau **Kepala Kantor Langsung** (`ST-xx/KBC.1201/2026`), lalu klik Simpan!")
+            st.markdown('<div class="section-badge">📋 A.1 — Pilih Surat Tugas & Filter Antrean Nomor ST</div>', unsafe_allow_html=True)
+            st.caption("Gunakan **Segmented Pill Filter** di bawah untuk memfilter ST yang belum memiliki Nomor ST dari Satu Kemenkeu atau menampilkan seluruh riwayat ST.")
 
             if not riwayat_list_global:
-                st.info("Belum ada data Surat Tugas.")
+                st.info("Belum ada data Surat Tugas yang tersimpan di Sheet1.")
+                sel_st_obj = None
             else:
                 filter_st_mode = st.radio(
-                    "Tampilkan Daftar ST:",
-                    options=["Hanya yang Belum Ada Nomor ST / Baru", "Semua Riwayat ST"],
+                    "Filter Daftar Surat Tugas (Pill Tabs Ramah Sentuhan):",
+                    options=[
+                        f"⏳ Belum Ada Nomor ST ({jml_st_belum_nomor} ST)",
+                        f"🗂️ Semua Riwayat ST ({len(riwayat_list_global)} ST)"
+                    ],
                     index=0,
-                    horizontal=True
+                    horizontal=True,
+                    key="pill_filter_st_mode"
                 )
 
                 rekap_map_by_no = {str(r["no"]).strip(): r for r in rekap_list_global}
@@ -2817,29 +2940,57 @@ with tab_perjadin:
                     cur_nost = item.get("nomor_st_resmi") or rekap_map_by_no.get(no_u, {}).get("nomor_st", "")
                     item_copy = dict(item)
                     item_copy["cur_nost"] = cur_nost
-                    if filter_st_mode == "Hanya yang Belum Ada Nomor ST / Baru":
+                    if filter_st_mode.startswith("⏳"):
                         if not cur_nost:
                             kandidat_st.append(item_copy)
                     else:
                         kandidat_st.append(item_copy)
 
                 if not kandidat_st:
-                    st.success("🎉 Mantap bro! Semua Surat Tugas sudah memiliki Nomor ST resmi.")
-                    kandidat_st = [dict(item, cur_nost=rekap_map_by_no.get(str(item["no_urut"]).strip(), {}).get("nomor_st", "")) for item in riwayat_list_global[:20]]
+                    st.success("🎉 Mantap bro! Seluruh Surat Tugas sudah memiliki Nomor ST resmi. Menampilkan 25 ST terbaru:")
+                    kandidat_st = [
+                        dict(item, cur_nost=(item.get("nomor_st_resmi") or rekap_map_by_no.get(str(item["no_urut"]).strip(), {}).get("nomor_st", "")))
+                        for item in riwayat_list_global[:25]
+                    ]
 
                 opsi_st_update = [
                     f"No. #{it['no_urut']} | {it['tgl_pelaksanaan']} | {it['pt_1']} ({'✅ ' + it['cur_nost'] if it['cur_nost'] else '⏳ Belum Ada Nomor ST'})"
                     for it in kandidat_st
                 ]
-                pil_st_lbl = st.selectbox("Pilih Surat Tugas:", options=opsi_st_update, index=0, key="sel_fast_nost")
+                pil_st_lbl = st.selectbox(
+                    f"Pilih Surat Tugas ({len(kandidat_st)} ST tersedia):",
+                    options=opsi_st_update,
+                    index=0,
+                    key="sel_fast_nost"
+                )
                 sel_st_obj = kandidat_st[opsi_st_update.index(pil_st_lbl)]
+
+                lok_preview_a, kec_preview_a = extract_lokasi_kecamatan(
+                    sel_st_obj.get("alamat_pabrik_1", ""),
+                    sel_st_obj.get("pt_1", ""),
+                    perusahaan_data
+                )
+                st.markdown(
+                    f'<div class="info-pill">'
+                    f'📌 <b>ST Terpilih:</b> No. Urut <b>#{sel_st_obj["no_urut"]}</b> &nbsp;|&nbsp; '
+                    f'🏢 <b>Pabrik:</b> {sel_st_obj["pt_1"]}{(" & " + sel_st_obj["pt_2"]) if sel_st_obj.get("pt_2") else ""}<br>'
+                    f'🗓️ <b>Waktu Pelaksanaan:</b> {sel_st_obj["hari"]} / <b>{sel_st_obj["tgl_pelaksanaan"]}</b> &nbsp;|&nbsp; '
+                    f'📍 <b>Wilayah:</b> {lok_preview_a} (Kec. {kec_preview_a})'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+        if sel_st_obj is not None:
+            with st.container(border=True):
+                st.markdown('<div class="section-badge">✍️ A.2 — Form Input Nomor ST Satu Kemenkeu (Otomatis Update 3 Sheet)</div>', unsafe_allow_html=True)
+                st.caption("Cukup ketik angkanya saja (misal `2041`), pilih format pejabat penandatangan di bawah, lalu tekan **Simpan Nomor ST**.")
 
                 def_ttd_fast = detect_tipe_ttd_from_nost(sel_st_obj.get("cur_nost", ""))
                 pil_ttd_fast = st.radio(
-                    "✍️ Pejabat Penandatangan ST (Menentukan Format Kode Unit Nomor ST):",
+                    "Pejabat Penandatangan ST (Penentu Format Kode Nomor ST):",
                     options=[
-                        "a.n. Kepala Kantor (Format: ST-xx/KBC.1201/KBC.120101/2026)",
-                        "Kepala Kantor Langsung (Format: ST-xx/KBC.1201/2026)"
+                        "a.n. Kepala Kantor (ST-xx/KBC.1201/KBC.120101/2026)",
+                        "Kepala Kantor Langsung (ST-xx/KBC.1201/2026)"
                     ],
                     index=1 if def_ttd_fast == "Kepala Kantor Langsung" else 0,
                     horizontal=True,
@@ -2851,10 +3002,10 @@ with tab_perjadin:
                     else "a.n. Kepala Kantor (Kepala Subbagian Umum)"
                 )
 
-                c_fn1, c_fn2, c_fn3 = st.columns([1.2, 1, 1])
+                c_fn1, c_fn2 = st.columns([1.15, 1])
                 with c_fn1:
                     input_angka_st = st.text_input(
-                        "Ketik Nomor ST dari Satu Kemenkeu*:",
+                        "🔢 Ketik Nomor ST dari Satu Kemenkeu*:",
                         value=sel_st_obj.get("cur_nost", ""),
                         placeholder="Ketik angka saja misal: 2041 atau ST-2041/...",
                         key=f"fast_nost_in_{sel_st_obj['no_urut']}"
@@ -2862,20 +3013,20 @@ with tab_perjadin:
                 with c_fn2:
                     default_tgl_lapor = sel_st_obj.get("tgl_st_resmi") or sel_st_obj.get("tgl_surat_1") or sel_st_obj.get("tgl_pelaksanaan")
                     input_tgl_st = st.text_input(
-                        "Tanggal ST (Kolom TANGGAL Rekap):",
+                        "🗓️ Tanggal ST / Tanggal Lapor (Kolom B Rekap):",
                         value=default_tgl_lapor,
                         key=f"fast_tglst_in_{sel_st_obj['no_urut']}"
                     )
-                with c_fn3:
-                    default_petugas_rekap = rekap_map_by_no.get(str(sel_st_obj["no_urut"]).strip(), {}).get("petugas", "")
-                    if not default_petugas_rekap:
-                        default_petugas_rekap = ", ".join([p["nama"] for p in sel_st_obj["daftar_petugas"]])
-                    input_petugas_rekap = st.text_input(
-                        "Nama Petugas di Rekap Umum (Bisa Disingkat):",
-                        value=default_petugas_rekap,
-                        help="Contoh: Gasyudha, Davin, Aji, Yudha",
-                        key=f"fast_pet_in_{sel_st_obj['no_urut']}"
-                    )
+
+                default_petugas_rekap = rekap_map_by_no.get(str(sel_st_obj["no_urut"]).strip(), {}).get("petugas", "")
+                if not default_petugas_rekap:
+                    default_petugas_rekap = ", ".join([p["nama"] for p in sel_st_obj["daftar_petugas"]])
+                input_petugas_rekap = st.text_input(
+                    "👮 Nama Petugas di Rekap Bagian Umum (Bisa Disingkat Sesuai Kebiasaan Lapor):",
+                    value=default_petugas_rekap,
+                    help="Contoh: Derry Kurniawan atau Gasyudha, Davin, Aji",
+                    key=f"fast_pet_in_{sel_st_obj['no_urut']}"
+                )
 
                 d_pel_prev = parse_indo_date(sel_st_obj["tgl_pelaksanaan"])
                 yr_pel_prev = d_pel_prev.year if d_pel_prev else 2026
@@ -2887,7 +3038,7 @@ with tab_perjadin:
                 )
                 if live_prev_nost:
                     st.markdown(
-                        f'<div class="info-pill-ok">🔢 <b>Pratinjau Nomor ST Resmi yang Akan Disimpan:</b> <code>{live_prev_nost}</code></div>',
+                        f'<div class="info-pill-ok">✅ <b>Format Nomor ST Resmi yang Akan Disimpan ke 3 Sheet:</b> <code>{live_prev_nost}</code></div>',
                         unsafe_allow_html=True
                     )
 
@@ -2896,7 +3047,7 @@ with tab_perjadin:
                         st.error("⚠️ Masukkan Nomor ST terlebih dahulu!")
                     else:
                         try:
-                            with st.spinner("Mengupdate Nomor ST di ketiga sheet sekaligus..."):
+                            with st.spinner("Menyimpan Nomor ST ke Sheet1, REKAP BAGIAN UMUM, dan DATA PERJADIN..."):
                                 ss = get_spreadsheet()
                                 d_pel = parse_indo_date(sel_st_obj["tgl_pelaksanaan"])
                                 yr_pel = d_pel.year if d_pel else 2026
@@ -2934,18 +3085,18 @@ with tab_perjadin:
                                     tgl_pelaksanaan_str=sel_st_obj["tgl_pelaksanaan"],
                                     nomor_st_resmi=no_st_final
                                 )
-                                st.toast(f"Nomor ST {no_st_final} berhasil disinkronkan!", icon="✅")
+                                st.toast(f"Nomor ST {no_st_final} berhasil disinkronkan ke 3 Sheet!", icon="✅")
                                 st.success(f"✅ **Nomor ST `{no_st_final}`** berhasil disimpan ke `Sheet1`, `{REKAP_SHEET_NAME}`, dan `DATA PERJADIN`!")
                                 st.cache_data.clear()
                                 st.rerun()
                         except Exception as e_upst:
                             st.error(f"Gagal menyimpan Nomor ST: {e_upst}")
 
-        # TABEL REKAP BAGIAN UMUM & FITUR COPY CEPAT
+        # BENTO CARD 3: TABEL REKAP BAGIAN UMUM & FITUR COPY CEPAT
         with st.container(border=True):
-            st.markdown('<div class="section-badge">2️⃣ Tabel Sheet REKAP BAGIAN UMUM (Siap Lapor / Copy ke Bagian Umum)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-badge">📊 A.3 — Tabel Sheet REKAP BAGIAN UMUM (Siap Copy ke Bagian Umum)</div>', unsafe_allow_html=True)
             if not rekap_list_global:
-                st.warning("Sheet `REKAP BAGIAN UMUM` masih kosong. Klik tombol di Sub-Tab C (`🔄 Sinkronisasi / Tarik Otomatis Data Lama`) untuk menarik seluruh data ST dari `Sheet1` secara otomatis!")
+                st.warning("Sheet `REKAP BAGIAN UMUM` masih kosong. Klik tombol di Sub-Tab C (`🔄 C. Sinkronisasi Massal & Backfill`) untuk menarik seluruh data ST dari `Sheet1` secara otomatis!")
             else:
                 st.dataframe(
                     [
@@ -2977,86 +3128,161 @@ with tab_perjadin:
                     st.code("\n".join(tsv_lines), language="text")
 
     # ------------------------------------------------------------------
-    # SUB-TAB B: UPDATE ID KEGIATAN & STATUS PERJADIN (OTOMATIS HILANGKAN 'BELUM ADA PERJADIN')
+    # SUB-TAB B: BENTO GRID UPDATE ID KEGIATAN & STATUS PERJADIN
     # ------------------------------------------------------------------
     with sub_id_perjadin:
         with st.container(border=True):
-            st.markdown('<div class="section-badge">🚗 Update ID Kegiatan & Status Perjadin (Sheet DATA PERJADIN)</div>', unsafe_allow_html=True)
-            st.caption("Begitu Bagian Umum menerbitkan **ID Kegiatan Perjadin**, masukkan di sini. Saat `ID KEGIATAN` terisi, tulisan **BELUM ADA PERJADIN** otomatis hilang dan Status berubah!")
+            st.markdown('<div class="section-badge">🔍 B.1 — Filter Pill & Pilih Tanggal Penugasan di DATA PERJADIN</div>', unsafe_allow_html=True)
+            st.caption("Pilih filter tampilan di bawah (ramah sentuhan jempol di HP). Setiap tanggal yang memiliki penugasan Luar Kota / Dalam Kota / Nomor ST tetapi **ID Kegiatannya masih kosong** otomatis ditandai **⚠️ BELUM ADA PERJADIN**.")
 
             mode_filter_perj = st.radio(
-                "Filter Hari Penugasan di DATA PERJADIN:",
+                "Filter Hari Penugasan (Segmented Pill Control):",
                 options=[
-                    f"⚠️ Hanya yang 'BELUM ADA PERJADIN' ({jml_belum_perjadin} Hari)",
-                    "🚗 Semua Hari yang Ada ST (Luar Kota / Dalam Kota)",
-                    "📅 Cari Berdasarkan Semua Tanggal Kalender"
+                    f"⚠️ Belum Ada Perjadin ({jml_belum_perjadin} Hari)",
+                    f"🔥 Hari Penugasan Aktif ({jml_hari_penugasan_aktif} Hari)",
+                    "📅 Semua Tanggal Kalender"
                 ],
                 index=0 if jml_belum_perjadin > 0 else 1,
-                horizontal=True
+                horizontal=True,
+                key="pill_filter_perj_mode"
             )
 
             if mode_filter_perj.startswith("⚠️"):
                 filtered_perj = [p for p in perjadin_list_global if p["keterangan"] == "BELUM ADA PERJADIN"]
-            elif mode_filter_perj.startswith("🚗"):
-                filtered_perj = [p for p in perjadin_list_global if p["luar_kota"] or p["dalam_kota"] or p["no_st"]]
+            elif mode_filter_perj.startswith("🔥"):
+                filtered_perj = [
+                    p for p in perjadin_list_global
+                    if p["luar_kota"] or p["dalam_kota"] or p["no_st"] or p["keterangan"] == "BELUM ADA PERJADIN"
+                ]
             else:
                 filtered_perj = perjadin_list_global
 
             if not filtered_perj:
-                st.success("🎉 Tidak ada antrean 'BELUM ADA PERJADIN'! Semua penugasan sudah memiliki ID Perjadin.")
-                filtered_perj = [p for p in perjadin_list_global if p["luar_kota"] or p["dalam_kota"]][-15:]
+                st.success("🎉 Tidak ada antrean 'BELUM ADA PERJADIN'! Semua hari penugasan aktif sudah memiliki ID Kegiatan Perjadin.")
+                filtered_perj = [
+                    p for p in perjadin_list_global
+                    if p["luar_kota"] or p["dalam_kota"] or p["no_st"]
+                ][-20:]
 
+            sel_perj = None
             if filtered_perj:
                 opsi_perj = []
                 for p in filtered_perj:
-                    kat = "Luar Kota" if p["luar_kota"] else ("Dalam Kota" if p["dalam_kota"] else "-")
-                    ket_badge = "⚠️ BELUM ADA PERJADIN" if p["keterangan"] == "BELUM ADA PERJADIN" else (f"✅ ID: {p['id_kegiatan']}" if p["id_kegiatan"] else p["status"])
+                    kat = "🚗 Luar Kota" if p["luar_kota"] else ("🏙️ Dalam Kota" if p["dalam_kota"] else "⚪ Belum Centang")
+                    ket_badge = (
+                        "⚠️ BELUM ADA PERJADIN"
+                        if p["keterangan"] == "BELUM ADA PERJADIN"
+                        else (f"✅ ID: {p['id_kegiatan']}" if p["id_kegiatan"] else (p["status"] or "Aman"))
+                    )
                     st_info = p["no_st"] if p["no_st"] else "Belum No.ST"
                     opsi_perj.append(f"{p['tanggal_str']} | {kat} | {st_info} | {ket_badge}")
 
-                pil_perj_lbl = st.selectbox("Pilih Tanggal Pelaksanaan di DATA PERJADIN:", options=opsi_perj, index=0)
+                pil_perj_lbl = st.selectbox(
+                    f"Pilih Tanggal Pelaksanaan ({len(filtered_perj)} hari ditampilkan):",
+                    options=opsi_perj,
+                    index=0,
+                    key="sel_perj_date_bento"
+                )
                 sel_perj = filtered_perj[opsi_perj.index(pil_perj_lbl)]
 
+                ket_pill_class = "info-pill-warn" if sel_perj["keterangan"] == "BELUM ADA PERJADIN" else "info-pill-ok"
+                kat_teks = "🚗 LUAR KOTA" if sel_perj["luar_kota"] else ("🏙️ DALAM KOTA" if sel_perj["dalam_kota"] else "⚪ BELUM TERCENTANG")
                 st.markdown(
-                    f'<div class="info-pill">🗓️ <b>Tanggal:</b> {sel_perj["tanggal_str"]} (Baris {sel_perj["row_num"]}) &nbsp;|&nbsp; '
-                    f'💰 <b>Nominal Otomatis:</b> {sel_perj["nominal"] or "-"} &nbsp;|&nbsp; '
-                    f'📌 <b>Keterangan Saat Ini:</b> <b>{sel_perj["keterangan"] or "Aman (Sudah Ada Perjadin)"}</b></div>',
+                    f'<div class="{ket_pill_class}">'
+                    f'🗓️ <b>Tanggal Terpilih:</b> <b>{sel_perj["tanggal_str"]}</b> (Baris GSheet: <b>#{sel_perj["row_num"]}</b>) &nbsp;|&nbsp; '
+                    f'📍 <b>Kategori:</b> <b>{kat_teks}</b> &nbsp;|&nbsp; '
+                    f'💰 <b>Nominal:</b> <b>Rp {sel_perj["nominal"] or "-"}</b><br>'
+                    f'🔢 <b>Nomor ST:</b> <code>{sel_perj["no_st"] or "(Belum diisi)"}</code> &nbsp;|&nbsp; '
+                    f'📌 <b>Status Peringatan:</b> <b>{sel_perj["keterangan"] or "✅ AMAN (SUDAH ADA ID PERJADIN)"}</b>'
+                    f'</div>',
                     unsafe_allow_html=True
                 )
 
-                with st.form(f"form_perjadin_{sel_perj['row_num']}", clear_on_submit=False):
-                    cp1, cp2 = st.columns(2)
-                    with cp1:
-                        def_ttd_perj = detect_tipe_ttd_from_nost(sel_perj["no_st"])
-                        in_ttd_perj = st.radio(
-                            "Format Kode Nomor ST:",
-                            options=["a.n. Kepala Kantor (KBC.1201/KBC.120101)", "Kepala Kantor Langsung (KBC.1201)"],
-                            index=1 if def_ttd_perj == "Kepala Kantor Langsung" else 0,
-                            horizontal=True,
-                            key=f"perj_ttd_fmt_{sel_perj['row_num']}"
-                        )
-                        in_no_st_perj = st.text_input("Nomor ST (Kolom I — Cukup ketik angka atau nomor lengkap):", value=sel_perj["no_st"], placeholder="Contoh: 2041 atau ST-2041/KBC.1201/2026")
-                        in_id_keg = st.text_input("ID Kegiatan Perjadin (Kolom J)*:", value=sel_perj["id_kegiatan"], placeholder="Masukkan ID 24 karakter dari Bagian Umum...")
-                        opsi_status_perj = [
-                            "KIRIM PERTANGGUNGJAWABAN",
-                            "PROSES PENCAIRAN",
-                            "SELESAI",
-                            "PERJADIN 1",
-                            "(Biarkan Kosong / Otomatis Rumus)"
-                        ]
-                        idx_st_def = opsi_status_perj.index(sel_perj["status"]) if sel_perj["status"] in opsi_status_perj else 0
-                        in_status_perj = st.selectbox("Status Perjadin (Kolom E):", options=opsi_status_perj, index=idx_st_def)
-                    with cp2:
-                        in_luar = st.checkbox("Luar Kota (Kabupaten Malang / Batu)", value=sel_perj["luar_kota"])
-                        in_dalam = st.checkbox("Dalam Kota (Kota Malang)", value=sel_perj["dalam_kota"])
-                        in_sudah_masuk = st.checkbox("Dana Sudah Masuk Rekening? (Kolom F)", value=sel_perj["sudah_masuk"])
-                        in_tgl_cair = st.text_input("Tanggal Cair (Kolom H - Opsional):", value=sel_perj["tgl_cair"], placeholder="Contoh: 15 Oktober 2026")
-                        apply_same_nost = st.checkbox(
-                            "⚡ Terapkan juga ID Kegiatan & Status ini ke seluruh tanggal lain yang memiliki Nomor ST yang sama (Praktis untuk ST Multi-Hari)",
-                            value=bool(sel_perj["no_st"].strip())
-                        )
+        if sel_perj is not None:
+            with st.container(border=True):
+                st.markdown(f'<div class="section-badge">🚗 B.2 — Form Update ID Kegiatan & Status ({sel_perj["tanggal_str"]})</div>', unsafe_allow_html=True)
+                st.caption("Tata letak **Bento 2-Kolom Responsif**: masukkan ID Kegiatan 24 karakter dari Bagian Umum di sebelah kiri, dan pastikan centang wilayah **Luar Kota / Dalam Kota** di sebelah kanan.")
 
-                    btn_save_perj = st.form_submit_button("💾 Simpan ID Perjadin & Perbarui Status", type="primary", use_container_width=True)
+                with st.form(f"form_perjadin_{sel_perj['row_num']}", clear_on_submit=False):
+                    cp1, cp2 = st.columns(2, gap="medium")
+
+                    with cp1:
+                        with st.container(border=True):
+                            st.markdown("**🔑 1. Identitas Nomor ST & ID Kegiatan**")
+                            def_ttd_perj = detect_tipe_ttd_from_nost(sel_perj["no_st"])
+                            in_ttd_perj = st.radio(
+                                "Format Kode Nomor ST:",
+                                options=[
+                                    "a.n. Kepala Kantor (KBC.1201/KBC.120101)",
+                                    "Kepala Kantor Langsung (KBC.1201)"
+                                ],
+                                index=1 if def_ttd_perj == "Kepala Kantor Langsung" else 0,
+                                horizontal=True,
+                                key=f"perj_ttd_fmt_{sel_perj['row_num']}"
+                            )
+                            in_no_st_perj = st.text_input(
+                                "Nomor ST (Kolom I — Ketik angka / nomor lengkap):",
+                                value=sel_perj["no_st"],
+                                placeholder="Contoh: 2041 atau ST-2041/KBC.1201/2026"
+                            )
+                            in_id_keg = st.text_input(
+                                "ID Kegiatan Perjadin (Kolom J)*:",
+                                value=sel_perj["id_kegiatan"],
+                                placeholder="Paste ID 24 karakter dari Bagian Umum..."
+                            )
+                            opsi_status_perj = [
+                                "KIRIM PERTANGGUNGJAWABAN",
+                                "PROSES PENCAIRAN",
+                                "SELESAI",
+                                "PERJADIN 1",
+                                "(Biarkan Kosong / Otomatis Rumus)"
+                            ]
+                            idx_st_def = opsi_status_perj.index(sel_perj["status"]) if sel_perj["status"] in opsi_status_perj else 0
+                            in_status_perj = st.selectbox(
+                                "Status Perjadin (Kolom E):",
+                                options=opsi_status_perj,
+                                index=idx_st_def
+                            )
+
+                    with cp2:
+                        with st.container(border=True):
+                            st.markdown("**📍 2. Kategori Wilayah & Status Pencairan**")
+                            st.caption("Sentuh kotak di bawah untuk mencentang kategori wilayah:")
+                            cb_col1, cb_col2 = st.columns(2)
+                            with cb_col1:
+                                in_luar = st.checkbox(
+                                    "🚗 Luar Kota (Kab. Malang / Batu)",
+                                    value=sel_perj["luar_kota"],
+                                    key=f"chk_lk_{sel_perj['row_num']}"
+                                )
+                            with cb_col2:
+                                in_dalam = st.checkbox(
+                                    "🏙️ Dalam Kota (Kota Malang)",
+                                    value=sel_perj["dalam_kota"],
+                                    key=f"chk_dk_{sel_perj['row_num']}"
+                                )
+
+                            in_sudah_masuk = st.checkbox(
+                                "💰 Dana Sudah Masuk Rekening? (Kolom F)",
+                                value=sel_perj["sudah_masuk"],
+                                key=f"chk_cair_{sel_perj['row_num']}"
+                            )
+                            in_tgl_cair = st.text_input(
+                                "🗓️ Tanggal Cair (Kolom H — Opsional):",
+                                value=sel_perj["tgl_cair"],
+                                placeholder="Contoh: 20 Oktober 2026"
+                            )
+                            apply_same_nost = st.checkbox(
+                                "⚡ Terapkan juga ke tanggal lain dengan Nomor ST yang sama (ST Multi-Hari)",
+                                value=bool(sel_perj["no_st"].strip()),
+                                key=f"chk_multi_{sel_perj['row_num']}"
+                            )
+
+                    btn_save_perj = st.form_submit_button(
+                        "💾 Simpan ID Perjadin & Perbarui Status",
+                        type="primary",
+                        use_container_width=True
+                    )
 
                 if btn_save_perj:
                     try:
@@ -3066,7 +3292,12 @@ with tab_perjadin:
                             r_p = sel_perj["row_num"]
 
                             yr_p_row = sel_perj["date_obj"].year if sel_perj.get("date_obj") else 2026
-                            no_st_clean_p = format_nomor_st_resmi(in_no_st_perj, yr_p_row, tipe_ttd=("Kepala Kantor Langsung" if "Kepala Kantor Langsung" in in_ttd_perj else "a.n. Kepala Kantor"), auto_adjust_unit=True)
+                            no_st_clean_p = format_nomor_st_resmi(
+                                in_no_st_perj,
+                                yr_p_row,
+                                tipe_ttd=("Kepala Kantor Langsung" if "Kepala Kantor Langsung" in in_ttd_perj else "a.n. Kepala Kantor"),
+                                auto_adjust_unit=True
+                            )
                             tidak_ada_st_val = False if (in_luar or in_dalam or no_st_clean_p or in_id_keg.strip()) else True
 
                             target_rows_perj = [sel_perj]
@@ -3109,8 +3340,13 @@ with tab_perjadin:
                     except Exception as e_sp:
                         st.error(f"Gagal memperbarui DATA PERJADIN: {e_sp}")
 
-            st.divider()
-            st.markdown("**📊 Tabel Monitoring DATA PERJADIN (Hari Penugasan Aktif):**")
+        with st.container(border=True):
+            st.markdown(
+                f'<div class="section-badge">📊 B.3 — Tabel Monitoring DATA PERJADIN '
+                f'<span style="background:#0A192F; color:#FBBF24; padding:3px 10px; border-radius:999px; font-size:0.8rem; margin-left:6px;">'
+                f'🔥 {jml_hari_penugasan_aktif} Hari Penugasan Aktif</span></div>',
+                unsafe_allow_html=True
+            )
             active_perj_table = [
                 {
                     "TANGGAL": p["tanggal_str"],
@@ -3133,19 +3369,22 @@ with tab_perjadin:
     # ------------------------------------------------------------------
     with sub_sync_massal:
         with st.container(border=True):
-            st.markdown('<div class="section-badge">🔄 Tarik & Sinkronkan Otomatis Seluruh Riwayat ST (Batch API 10x Lebih Cepat)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-badge">🔄 C.1 — Tarik & Sinkronkan Otomatis Seluruh Riwayat ST (Batch API 10x Lebih Cepat)</div>', unsafe_allow_html=True)
             st.markdown("""
             Fitur ini dirancang khusus agar kamu **tidak perlu mengetik ulang** data Surat Tugas yang sudah pernah diinput di `Sheet1`:
-            1. Otomatis membuat sheet baru bernama **`REKAP BAGIAN UMUM`** (jika belum ada) lengkap dengan 9 kolom (`NO`, `TANGGAL`, `PERIHAL`, `Nama Pabrik`, `LOKASI`, `Kecamatan`, `PETUGAS`, `TANGGAL PELAKSANAAN`, `NOMOR ST`).
+            1. Otomatis merapikan baris `Sheet1` yang sempat bergeser kolom (jika ada) dan menyusun tabel **`REKAP BAGIAN UMUM`** lengkap 9 kolom (`NO`, `TANGGAL`, `PERIHAL`, `Nama Pabrik`, `LOKASI`, `Kecamatan`, `PETUGAS`, `TANGGAL PELAKSANAAN`, `NOMOR ST`).
             2. Mengekstrak otomatis **Kabupaten/Kota** dan **Kecamatan** dari alamat pabrik untuk seluruh riwayat ST di `Sheet1`.
-            3. Mencocokkan `NOMOR ST` yang sudah tercatat di `DATA PERJADIN` agar langsung masuk ke `REKAP BAGIAN UMUM`.
-            4. Menggunakan **Batch API Update (`ws_perj.batch_update`)** untuk mencentang sekaligus seluruh tanggal `LUAR KOTA` / `DALAM KOTA` di `DATA PERJADIN` dalam 1x panggilan jaringan (10x lebih cepat & bebas limit kuota API Google Sheets).
+            3. Mencocokkan `NOMOR ST` antara `Sheet1`, `REKAP BAGIAN UMUM`, dan `DATA PERJADIN`.
+            4. Menggunakan **Batch API Update (`ws_perj.batch_update`)** untuk mencentang sekaligus seluruh tanggal `LUAR KOTA` / `DALAM KOTA` dan mengisi `NO ST` di `DATA PERJADIN` dalam 1x panggilan jaringan (bebas limit kuota API Google Sheets).
             """)
 
             if st.button("🚀 Jalankan Sinkronisasi Otomatis Seluruh Data Sheet1 -> REKAP BAGIAN UMUM & DATA PERJADIN", type="primary", use_container_width=True):
                 try:
                     with st.spinner("Sedang memproses & menyinkronkan seluruh riwayat ST secara Batch ke REKAP BAGIAN UMUM dan DATA PERJADIN..."):
                         ss = get_spreadsheet()
+                        ws_s1_sync = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
+                        repair_shifted_rows_in_sheet1(ws_s1_sync)
+
                         ws_rekap = get_or_create_rekap_worksheet(ss)
                         ws_perj = find_worksheet_flexible(ss, ["DATA PERJADIN", "PERJADIN"])
 
@@ -3251,7 +3490,7 @@ with tab_perjadin:
                         st.success(
                             f"✅ **Sinkronisasi Massal Batch Selesai!**\n"
                             f"- **{len(rekap_batch) - 1} Surat Tugas** berhasil disusun rapi ke dalam sheet **`{REKAP_SHEET_NAME}`**.\n"
-                            f"- **{len(batch_perjadin_payload)} Tanggal Pelaksanaan** di **`DATA PERJADIN`** otomatis diperbarui sekaligus via `batch_update`."
+                            f"- **{len(batch_perjadin_payload)} Update Sel** di **`DATA PERJADIN`** otomatis diperbarui sekaligus via `batch_update`."
                         )
                         st.cache_data.clear()
                         st.rerun()
