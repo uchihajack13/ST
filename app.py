@@ -492,7 +492,10 @@ BULAN_INDONESIA = {
 BULAN_MAP_REV = {v.lower(): k for k, v in BULAN_INDONESIA.items()}
 BULAN_MAP_REV.update({
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "mei": 5, "jun": 6,
-    "jul": 7, "agu": 8, "ags": 8, "sep": 9, "okt": 10, "nov": 11, "des": 12
+    "jul": 7, "agu": 8, "ags": 8, "sep": 9, "sept": 9, "okt": 10, "nov": 11, "des": 12,
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "aug": 8, "september": 9, "october": 10, "oct": 10,
+    "november": 11, "december": 12, "dec": 12
 })
 
 PRESET_PERMOHONAN_OPTIONS = [
@@ -534,29 +537,27 @@ def format_hari_tanggal_pelaksanaan(d_mulai: datetime.date, d_akhir: datetime.da
     return f"{hari_mulai} s.d. {hari_akhir}", f"{tgl_mulai_str} s.d. {tgl_akhir_str}", durasi
 
 def parse_indo_date(val) -> datetime.date:
-    """Mengubah berbagai format string tanggal Indonesia / ISO menjadi datetime.date (mengambil tanggal pertama jika berupa rentang)."""
+    """
+    Mengubah berbagai format string tanggal Indonesia / Inggris / ISO / Custom GSheet menjadi datetime.date.
+    Mendukung penuh format Kolom A DATA PERJADIN ('Selasa, Oktober 20, 2026' / 'Rabu, Juli 01, 2026')
+    maupun format Sheet1 & REKAP BAGIAN UMUM ('20 Oktober 2026').
+    """
     if not val:
         return None
     if isinstance(val, datetime.datetime):
         return val.date()
     if isinstance(val, datetime.date):
         return val
+    if isinstance(val, (int, float)) and 30000 <= val <= 80000:
+        try:
+            return datetime.date(1899, 12, 30) + datetime.timedelta(days=int(val))
+        except Exception:
+            pass
     s = str(val).strip()
     if not s:
         return None
-    # Coba format "15 Oktober 2026"
-    m = re.search(r'(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s)
-    if m:
-        day = int(m.group(1))
-        mon_str = m.group(2).lower()
-        yr = int(m.group(3))
-        if mon_str in BULAN_MAP_REV:
-            try:
-                return datetime.date(yr, BULAN_MAP_REV[mon_str], day)
-            except Exception:
-                pass
-    # Coba format rentang ringkas "21 s.d. 23 Oktober 2026"
-    m_short = re.search(r'(\d{1,2})\s*(?:s\.?d\.?|s/d|-|–)\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s, flags=re.IGNORECASE)
+    # 1. Coba format rentang ringkas "21 s.d. 23 Oktober 2026" (ambil tanggal awal)
+    m_short = re.search(r'(\d{1,2})\s*(?:s\.?d\.?|s/d|-|–)\s*(\d{1,2})\s+([A-Za-z]+)[,\s]+(\d{4})', s, flags=re.IGNORECASE)
     if m_short:
         day1 = int(m_short.group(1))
         mon_str = m_short.group(3).lower()
@@ -566,18 +567,43 @@ def parse_indo_date(val) -> datetime.date:
                 return datetime.date(yr, BULAN_MAP_REV[mon_str], day1)
             except Exception:
                 pass
-    # Coba format ISO "2026-10-15"
-    m2 = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})', s)
+    # 2. Coba format "15 Oktober 2026" atau "Selasa, 15 Oktober 2026" (DD Bulan YYYY)
+    m = re.search(r'(\d{1,2})\s+([A-Za-z]+)[,\s]+(\d{4})', s)
+    if m:
+        day = int(m.group(1))
+        mon_str = m.group(2).lower()
+        yr = int(m.group(3))
+        if mon_str in BULAN_MAP_REV:
+            try:
+                return datetime.date(yr, BULAN_MAP_REV[mon_str], day)
+            except Exception:
+                pass
+    # 3. Coba format Kolom A DATA PERJADIN: "Rabu, Juli 01, 2026" / "Selasa, Oktober 20, 2026" (Bulan DD, YYYY)
+    m_mdy = re.search(r'([A-Za-z]+)\s+(\d{1,2})[,\s]+(\d{4})', s)
+    if m_mdy:
+        mon_str = m_mdy.group(1).lower()
+        day = int(m_mdy.group(2))
+        yr = int(m_mdy.group(3))
+        if mon_str in BULAN_MAP_REV:
+            try:
+                return datetime.date(yr, BULAN_MAP_REV[mon_str], day)
+            except Exception:
+                pass
+    # 4. Coba format ISO "2026-10-15"
+    m2 = re.match(r'^(\d{4})[/-](\d{1,2})[/-](\d{1,2})', s)
     if m2:
         try:
             return datetime.date(int(m2.group(1)), int(m2.group(2)), int(m2.group(3)))
         except Exception:
             pass
-    # Coba format DD/MM/YYYY
+    # 5. Coba format DD/MM/YYYY atau MM/DD/YYYY
     m3 = re.match(r'^(\d{1,2})[/-](\d{1,2})[/-](\d{4})', s)
     if m3:
+        p1, p2, yr = int(m3.group(1)), int(m3.group(2)), int(m3.group(3))
         try:
-            return datetime.date(int(m3.group(3)), int(m3.group(2)), int(m3.group(1)))
+            if p2 <= 12:
+                return datetime.date(yr, p2, p1)
+            return datetime.date(yr, p1, p2)
         except Exception:
             pass
     return None
@@ -587,6 +613,7 @@ def parse_indo_date_range(val) -> list:
     Mengekstrak seluruh daftar datetime.date harian dari string tanggal tunggal maupun rentang tanggal.
     Contoh:
     - '21 Oktober 2026' -> [date(2026, 10, 21)]
+    - 'Selasa, Oktober 20, 2026' -> [date(2026, 10, 20)]
     - '21 Oktober 2026 s.d. 23 Oktober 2026' -> [date(2026, 10, 21), date(2026, 10, 22), date(2026, 10, 23)]
     - '21 s.d. 23 Oktober 2026' -> [date(2026, 10, 21), date(2026, 10, 22), date(2026, 10, 23)]
     """
@@ -599,8 +626,8 @@ def parse_indo_date_range(val) -> list:
     if not s:
         return []
 
-    # 1. Cek jika ada >= 2 tanggal lengkap (misal: "21 Oktober 2026 s.d. 23 Oktober 2026" atau "30 Oktober 2026 s.d. 2 November 2026")
-    all_full = re.findall(r'(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s)
+    # 1. Cek jika ada >= 2 tanggal lengkap DD Bulan YYYY (misal: "21 Oktober 2026 s.d. 23 Oktober 2026")
+    all_full = re.findall(r'(\d{1,2})\s+([A-Za-z]+)[,\s]+(\d{4})', s)
     if len(all_full) >= 2:
         try:
             d1_day, d1_mon, d1_yr = int(all_full[0][0]), all_full[0][1].lower(), int(all_full[0][2])
@@ -614,7 +641,7 @@ def parse_indo_date_range(val) -> list:
             pass
 
     # 2. Cek jika format ringkas dalam bulan yang sama (misal: "21 s.d. 23 Oktober 2026" atau "21 - 23 Oktober 2026")
-    m_short = re.search(r'(\d{1,2})\s*(?:s\.?d\.?|s/d|-|–)\s*(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})', s, flags=re.IGNORECASE)
+    m_short = re.search(r'(\d{1,2})\s*(?:s\.?d\.?|s/d|-|–)\s*(\d{1,2})\s+([A-Za-z]+)[,\s]+(\d{4})', s, flags=re.IGNORECASE)
     if m_short:
         try:
             day1 = int(m_short.group(1))
@@ -629,9 +656,44 @@ def parse_indo_date_range(val) -> list:
         except Exception:
             pass
 
-    # 3. Fallback tanggal tunggal
+    # 3. Fallback tanggal tunggal (termasuk format "Selasa, Oktober 20, 2026")
     d_one = parse_indo_date(s)
     return [d_one] if d_one else []
+
+def merge_nomor_st_cell(cur_no_st: str, new_no_st: str) -> str:
+    """
+    Menggabungkan atau memperbarui Nomor ST pada sel Kolom I (NO ST) di DATA PERJADIN:
+    - Jika nomor urut ST sama (misal mengganti format ST-2041/KBC.1201/KBC.120101/2026 menjadi ST-2041/KBC.1201/2026),
+      otomatis mengganti (replace) nomor tersebut tanpa duplikasi.
+    - Jika di hari yang sama ada ST lain dengan nomor berbeda, menggabungkannya dengan koma.
+    """
+    new_clean = (new_no_st or "").strip()
+    cur_clean = (cur_no_st or "").strip()
+    if not new_clean:
+        return cur_clean
+    if not cur_clean:
+        return new_clean
+
+    m_new_num = re.match(r'^ST[-\s]*(\d+)/', new_clean, flags=re.IGNORECASE)
+    new_num = m_new_num.group(1) if m_new_num else None
+
+    parts = [p.strip() for p in cur_clean.split(",") if p.strip()]
+    updated_parts = []
+    replaced = False
+    for p in parts:
+        if p.upper() == new_clean.upper():
+            updated_parts.append(new_clean)
+            replaced = True
+            continue
+        m_p_num = re.match(r'^ST[-\s]*(\d+)/', p, flags=re.IGNORECASE)
+        if new_num and m_p_num and m_p_num.group(1) == new_num:
+            updated_parts.append(new_clean)
+            replaced = True
+        else:
+            updated_parts.append(p)
+    if not replaced:
+        updated_parts.append(new_clean)
+    return ", ".join(updated_parts)
 
 def strip_permohonan(text: str) -> str:
     if not text:
@@ -1064,8 +1126,9 @@ def sync_st_to_rekap_and_perjadin(
                     cur_dalam = str(existing_row_vals[2]).strip().upper() == "TRUE"
                     cur_no_st = str(existing_row_vals[8]).strip()
 
-                    new_luar = True if not is_dalam_kota else cur_luar
-                    new_dalam = True if is_dalam_kota else cur_dalam
+                    # Prioritas Luar Kota di atas Dalam Kota pada hari yang sama (agar COUNTIF tidak ganda)
+                    new_luar = True if (not is_dalam_kota or cur_luar) else False
+                    new_dalam = False if new_luar else True
 
                     # 1. Update B, C, D (LUAR KOTA, DALAM KOTA, TIDAK ADA ST = FALSE)
                     batch_payload_perj.append({
@@ -1085,10 +1148,7 @@ def sync_st_to_rekap_and_perjadin(
 
                     # 3. Update Kolom I (NO ST) jika nomor_st_resmi diisi
                     if nomor_st_resmi:
-                        if cur_no_st and nomor_st_resmi not in cur_no_st:
-                            combined_st = f"{cur_no_st}, {nomor_st_resmi}"
-                        else:
-                            combined_st = nomor_st_resmi
+                        combined_st = merge_nomor_st_cell(cur_no_st, nomor_st_resmi)
                         batch_payload_perj.append({
                             "range": f"I{p_row}",
                             "values": [[combined_st]]
@@ -1309,10 +1369,15 @@ def load_riwayat_data():
 
 @st.cache_data(ttl=15)
 def load_perjadin_and_rekap_data():
-    """Memuat data dari sheet DATA PERJADIN dan REKAP BAGIAN UMUM untuk Tab 3."""
+    """
+    Memuat data dari sheet DATA PERJADIN dan REKAP BAGIAN UMUM untuk Tab 3,
+    sekaligus menjalankan Auto-Heal (sinkronisasi otomatis) apabila ada ST di REKAP BAGIAN UMUM
+    yang tanggal pelaksanaannya atau Nomor ST-nya belum masuk ke DATA PERJADIN.
+    """
     ss = get_spreadsheet()
     perjadin_rows = []
     rekap_rows = []
+    ws_p = None
 
     # 1. Baca DATA PERJADIN
     try:
@@ -1324,20 +1389,29 @@ def load_perjadin_and_rekap_data():
             if not tgl_str or tgl_str.upper() == "TOTAL":
                 continue
             d_obj = parse_indo_date(tgl_str)
+            b_luar = r_pad[1].strip().upper() == "TRUE"
+            c_dalam = r_pad[2].strip().upper() == "TRUE"
+            d_no_st_flag = r_pad[3].strip().upper() == "TRUE"
+            e_status = r_pad[4].strip()
+            i_nost = r_pad[8].strip()
+            j_idkeg = r_pad[9].strip()
+            k_ket = r_pad[10].strip()
+            if not k_ket and (b_luar or c_dalam or i_nost) and not j_idkeg and not e_status:
+                k_ket = "BELUM ADA PERJADIN"
             perjadin_rows.append({
                 "row_num": idx,
                 "tanggal_str": tgl_str,
                 "date_obj": d_obj,
-                "luar_kota": r_pad[1].strip().upper() == "TRUE",
-                "dalam_kota": r_pad[2].strip().upper() == "TRUE",
-                "tidak_ada_st": r_pad[3].strip().upper() == "TRUE",
-                "status": r_pad[4].strip(),
+                "luar_kota": b_luar,
+                "dalam_kota": c_dalam,
+                "tidak_ada_st": d_no_st_flag,
+                "status": e_status,
                 "sudah_masuk": r_pad[5].strip().upper() == "TRUE",
                 "nominal": r_pad[6].strip(),
                 "tgl_cair": r_pad[7].strip(),
-                "no_st": r_pad[8].strip(),
-                "id_kegiatan": r_pad[9].strip(),
-                "keterangan": r_pad[10].strip()
+                "no_st": i_nost,
+                "id_kegiatan": j_idkeg,
+                "keterangan": k_ket
             })
     except Exception:
         pass
@@ -1366,6 +1440,59 @@ def load_perjadin_and_rekap_data():
                 })
     except Exception:
         pass
+
+    # 3. AUTO-HEAL: Jika ada ST di REKAP BAGIAN UMUM yang belum tercentang / belum masuk NO ST-nya di DATA PERJADIN,
+    #    otomatis sinkronkan ke DATA PERJADIN via batch_update!
+    if ws_p is not None and perjadin_rows and rekap_rows:
+        try:
+            perj_by_date = {p["date_obj"]: p for p in perjadin_rows if p.get("date_obj")}
+            auto_heal_batch = []
+            for r_item in rekap_rows:
+                d_list = parse_indo_date_range(r_item.get("tgl_pelaksanaan", ""))
+                is_dk = ("kota malang" in r_item.get("lokasi", "").lower())
+                r_nost = r_item.get("nomor_st", "").strip()
+                for d_pel in d_list:
+                    if d_pel and d_pel in perj_by_date:
+                        p_target = perj_by_date[d_pel]
+                        p_rnum = p_target["row_num"]
+                        need_check = (not p_target["luar_kota"] and not p_target["dalam_kota"]) or p_target["tidak_ada_st"]
+                        merged_nost = merge_nomor_st_cell(p_target["no_st"], r_nost) if r_nost else p_target["no_st"]
+                        need_nost_update = (merged_nost != p_target["no_st"])
+
+                        if need_check:
+                            new_b = True if not is_dk else False
+                            new_c = True if is_dk else False
+                            auto_heal_batch.append({
+                                "range": f"B{p_rnum}:D{p_rnum}",
+                                "values": [[new_b, new_c, False]]
+                            })
+                            p_target["luar_kota"] = new_b
+                            p_target["dalam_kota"] = new_c
+                            p_target["tidak_ada_st"] = False
+                            if not p_target["nominal"]:
+                                p_target["nominal"] = "100.000" if (new_b and d_pel.month == 10) else ("50.000" if (new_c and d_pel.month == 10) else p_target["nominal"])
+                            if d_pel.weekday() >= 5 and p_target["status"] in ("", "PREI BOS! MANDEK!", "NGANTOR BOS!"):
+                                formula_e = f'=IF(A{p_rnum}="", "", IF(D{p_rnum}=TRUE, IF(WEEKDAY(A{p_rnum}, 2)>=6, "PREI BOS! MANDEK!", "NGANTOR BOS!"), ""))'
+                                auto_heal_batch.append({
+                                    "range": f"E{p_rnum}",
+                                    "values": [[formula_e]]
+                                })
+                                p_target["status"] = ""
+
+                        if need_nost_update:
+                            auto_heal_batch.append({
+                                "range": f"I{p_rnum}",
+                                "values": [[merged_nost]]
+                            })
+                            p_target["no_st"] = merged_nost
+
+                        if ( p_target["luar_kota"] or p_target["dalam_kota"] or p_target["no_st"] ) and not p_target["id_kegiatan"] and not p_target["status"]:
+                            p_target["keterangan"] = "BELUM ADA PERJADIN"
+
+            if auto_heal_batch:
+                ws_p.batch_update(auto_heal_batch, value_input_option="USER_ENTERED")
+        except Exception:
+            pass
 
     return perjadin_rows, rekap_rows
 
@@ -3084,17 +3211,26 @@ with tab_perjadin:
                                     cur_b = p_rvals[1].strip().upper() == "TRUE"
                                     cur_c = p_rvals[2].strip().upper() == "TRUE"
                                     cur_d = p_rvals[3].strip().upper() == "TRUE"
+                                    cur_i = p_rvals[8].strip()
                                     is_dk = ("kota malang" in lok_val.lower())
-                                    need_b = True if not is_dk else cur_b
-                                    need_c = True if is_dk else cur_c
+                                    need_b = True if (not is_dk or cur_b) else False
+                                    need_c = False if need_b else True
                                     if (need_b != cur_b) or (need_c != cur_c) or cur_d:
                                         p_rvals[1] = "TRUE" if need_b else "FALSE"
                                         p_rvals[2] = "TRUE" if need_c else "FALSE"
                                         p_rvals[3] = "FALSE"
-                                        batch_perjadin_map[p_rnum] = {
+                                        batch_perjadin_map[f"BCD_{p_rnum}"] = {
                                             "range": f"B{p_rnum}:D{p_rnum}",
                                             "values": [[need_b, need_c, False]]
                                         }
+                                    if no_st_val:
+                                        merged_i = merge_nomor_st_cell(cur_i, no_st_val)
+                                        if merged_i != cur_i:
+                                            p_rvals[8] = merged_i
+                                            batch_perjadin_map[f"I_{p_rnum}"] = {
+                                                "range": f"I{p_rnum}",
+                                                "values": [[merged_i]]
+                                            }
 
                         batch_perjadin_payload = list(batch_perjadin_map.values())
                         if batch_perjadin_payload:
