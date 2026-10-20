@@ -639,21 +639,46 @@ def strip_permohonan(text: str) -> str:
     clean = re.sub(r'^(permohonan\s+|permohonan:\s*)', '', text.strip(), flags=re.IGNORECASE).strip()
     return clean
 
-def format_nomor_st_resmi(raw_st: str, tahun: int = 2026) -> str:
+def detect_tipe_ttd_from_nost(nomor_st: str) -> str:
     """
-    Memudahkan user: cukup ketik angka (misal '2013' atau 'ST-2013')
-    maka otomatis menjadi 'ST-2013/KBC.1201/KBC.120101/2026'.
-    Jika sudah lengkap, biarkan apa adanya.
+    Mendeteksi jenis penandatangan dari format Nomor ST yang sudah tersimpan:
+    - Jika mengandung '/KBC.1201/20' (tanpa KBC.120101) -> 'Kepala Kantor Langsung'
+    - Selain itu default -> 'a.n. Kepala Kantor (Kepala Subbagian Umum)'
+    """
+    s = (nomor_st or "").strip().upper()
+    if re.search(r'/KBC\.1201/\d{4}$', s) and "KBC.120101" not in s:
+        return "Kepala Kantor Langsung"
+    return "a.n. Kepala Kantor (Kepala Subbagian Umum)"
+
+def format_nomor_st_resmi(
+    raw_st: str,
+    tahun: int = 2026,
+    tipe_ttd: str = "a.n. Kepala Kantor (Kepala Subbagian Umum)",
+    auto_adjust_unit: bool = False
+) -> str:
+    """
+    Memformat Nomor ST secara dinamis sesuai pejabat penandatangan:
+    - Jika ditandatangani a.n. Kepala Kantor: ST-xx/KBC.1201/KBC.120101/2026
+    - Jika ditandatangani Kepala Kantor langsung: ST-xx/KBC.1201/2026
     """
     if not raw_st or not str(raw_st).strip():
         return ""
     s = str(raw_st).strip()
-    if "/" in s:
-        return s
+    is_kk_langsung = ("kepala kantor langsung" in str(tipe_ttd).lower())
+    unit_code = "KBC.1201" if is_kk_langsung else "KBC.1201/KBC.120101"
+
+    # Jika user mengetik angka saja (misal '2013' atau 'ST-2013')
     m = re.match(r'^(?:ST[-\s]*)?(\d+)$', s, flags=re.IGNORECASE)
     if m:
         angka = m.group(1)
-        return f"ST-{angka}/KBC.1201/KBC.120101/{tahun}"
+        return f"ST-{angka}/{unit_code}/{tahun}"
+
+    # Jika sudah berformat ST-xx/KBC.1201.../tahun dan user mengganti opsi penandatangan (auto_adjust_unit=True)
+    if auto_adjust_unit:
+        m_full = re.match(r'^ST[-\s]*(\d+)/KBC\.1201(?:/KBC\.120101)?/(\d{4})$', s, flags=re.IGNORECASE)
+        if m_full:
+            return f"ST-{m_full.group(1)}/{unit_code}/{m_full.group(2)}"
+
     return s
 
 def extract_lokasi_kecamatan(alamat: str, pt_name: str = "", perusahaan_dict: dict = None):
@@ -861,7 +886,7 @@ def reset_form_input(pegawai_list=None):
     for k in (
         "sel_pt1", "sel_pt2", "in_nosurat1", "in_nosurat2",
         "chk_pt2", "in_nost_opsional", "ms_petugas_st", "sel_lok1", "sel_lok2",
-        "in_tgl_pelaks_mulai", "in_tgl_pelaks_akhir", "in_tgl_st_rekap"
+        "in_tgl_pelaks_mulai", "in_tgl_pelaks_akhir", "in_tgl_st_rekap", "in_tipe_ttd"
     ):
         if k in st.session_state:
             del st.session_state[k]
@@ -1011,7 +1036,7 @@ def sync_st_to_rekap_and_perjadin(
         if target_rekap_row:
             ws_rekap.update(f"A{target_rekap_row}:I{target_rekap_row}", [rekap_payload], value_input_option="USER_ENTERED")
         else:
-            ws_rekap.append_row(rekap_payload, value_input_option="USER_ENTERED")
+            ws_rekap.append_row(rekap_payload, value_input_option="USER_ENTERED", table_range="A1")
         hasil_log["rekap_ok"] = True
     except Exception as e_rek:
         hasil_log["rekap_err"] = str(e_rek)
@@ -1121,7 +1146,78 @@ def load_master_data():
 
     return pegawai_dict, perusahaan_dict
 
-@st.cache_data(ttl=45)
+def repair_shifted_rows_in_sheet1(ws=None):
+    """
+    Memperbaiki otomatis baris ST yang sempat bergeser ke Kolom AG (indeks 32) akibat bug
+    table_range Google Sheets API (contoh: ST No. 145 di baris 157 dan sel #ERROR! di AG156),
+    memindahkannya kembali ke baris kosong tepat di bawah data terakhir Kolom A:AK,
+    serta membersihkan sel yang nyasar di kolom AG:BQ.
+    """
+    try:
+        if ws is None:
+            ss = get_spreadsheet()
+            ws = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
+        all_rows = ws.get_all_values()
+        if len(all_rows) <= 1:
+            return False
+
+        last_normal_row = 1
+        shifted_entries = []
+        error_cells_to_clear = []
+
+        for idx, r_raw in enumerate(all_rows[1:], start=2):
+            col_a = r_raw[0].strip() if len(r_raw) > 0 else ""
+            if col_a.isdigit():
+                last_normal_row = idx
+                continue
+            if not col_a:
+                # Cek apakah ada data ST yang bergeser ke kolom AG (indeks 32) atau sekitarnya
+                for shift_idx in range(1, len(r_raw)):
+                    val_s = r_raw[shift_idx].strip()
+                    if not val_s:
+                        continue
+                    if val_s.upper().startswith("#ERROR") or val_s.upper().startswith("#REF") or val_s.upper().startswith("#VALUE"):
+                        error_cells_to_clear.append((idx, shift_idx))
+                    elif val_s.isdigit() and len(r_raw) > shift_idx + 1 and r_raw[shift_idx + 1].strip():
+                        extracted_37 = r_raw[shift_idx:shift_idx + 37]
+                        extracted_37 += [""] * (37 - len(extracted_37))
+                        shifted_entries.append((idx, shift_idx, extracted_37))
+                        break
+
+        if not shifted_entries and not error_cells_to_clear:
+            return False
+
+        batch_fix = []
+        # 1. Bersihkan sel #ERROR! yang membuat append_row nyasar
+        for err_row, _ in error_cells_to_clear:
+            batch_fix.append({
+                "range": f"A{err_row}:BQ{err_row}",
+                "values": [[""] * 69]
+            })
+
+        # 2. Pindahkan baris yang bergeser (seperti ST #145) ke baris A:AK tepat setelah last_normal_row
+        next_target_row = last_normal_row + 1
+        for orig_row, shift_idx, data_37 in shifted_entries:
+            # Bersihkan baris asal yang bergeser di kolom AG:BQ
+            batch_fix.append({
+                "range": f"A{orig_row}:BQ{orig_row}",
+                "values": [[""] * 69]
+            })
+            # Tulis ulang dengan rapi di A{next_target_row}:AK{next_target_row}
+            batch_fix.append({
+                "range": f"A{next_target_row}:AK{next_target_row}",
+                "values": [data_37]
+            })
+            next_target_row += 1
+
+        if batch_fix:
+            ws.batch_update(batch_fix, value_input_option="USER_ENTERED")
+            return True
+    except Exception:
+        pass
+    return False
+
+@st.cache_data(ttl=15)
 def load_riwayat_data():
     try:
         ss = get_spreadsheet()
@@ -1129,14 +1225,38 @@ def load_riwayat_data():
         all_rows = ws.get_all_values()
         if len(all_rows) <= 1:
             return []
+
+        # Deteksi jika ada baris yang bergeser ke Kolom AG (seperti ST #145) -> perbaiki otomatis di GSheet!
+        has_shifted = False
+        for r_chk in all_rows[1:]:
+            c_a = r_chk[0].strip() if len(r_chk) > 0 else ""
+            if not c_a and len(r_chk) > 33 and r_chk[32].strip().isdigit() and r_chk[33].strip():
+                has_shifted = True
+                break
+        if has_shifted:
+            if repair_shifted_rows_in_sheet1(ws):
+                all_rows = ws.get_all_values()
         
         data_rows = all_rows[1:]
         riwayat = []
         for orig_idx, r_raw in enumerate(data_rows):
-            if not r_raw or not r_raw[0].strip():
+            if not r_raw:
                 continue
             sheet_row_num = orig_idx + 2
-            r = r_raw + [""] * (37 - len(r_raw))
+            col_a_val = r_raw[0].strip() if len(r_raw) > 0 else ""
+
+            # Fallback ekstra aman: jika masih ada baris yang bergeser ke kolom AG (indeks 32), tetap baca penuh!
+            if not col_a_val:
+                shifted_slice = None
+                for s_idx in range(1, len(r_raw) - 1):
+                    if r_raw[s_idx].strip().isdigit() and r_raw[s_idx + 1].strip():
+                        shifted_slice = r_raw[s_idx:s_idx + 37]
+                        break
+                if not shifted_slice:
+                    continue
+                r = shifted_slice + [""] * (37 - len(shifted_slice))
+            else:
+                r = r_raw[:37] + [""] * max(0, 37 - len(r_raw[:37]))
             
             daftar_petugas = []
             for i in range(6):
@@ -1187,7 +1307,7 @@ def load_riwayat_data():
     except Exception:
         return []
 
-@st.cache_data(ttl=45)
+@st.cache_data(ttl=15)
 def load_perjadin_and_rekap_data():
     """Memuat data dari sheet DATA PERJADIN dan REKAP BAGIAN UMUM untuk Tab 3."""
     ss = get_spreadsheet()
@@ -1952,7 +2072,13 @@ with tab_input:
             tgl_pelaksanaan_akhir
         )
         tgl_st_indo_str = format_tanggal_indo(tgl_st_rekap)
-        preview_no_st_fmt = format_nomor_st_resmi(no_st_opsional, tgl_pelaksanaan_mulai.year) if no_st_opsional else "(Menunggu dari Satu Kemenkeu — Bisa diupdate di Tab 3)"
+        cur_tipe_ttd_k2 = st.session_state.get("in_tipe_ttd", "a.n. Kepala Kantor (Kepala Subbagian Umum)")
+        pola_kode_st_k2 = "ST-xx/KBC.1201/2026" if "kepala kantor langsung" in cur_tipe_ttd_k2.lower() else "ST-xx/KBC.1201/KBC.120101/2026"
+        preview_no_st_fmt = (
+            format_nomor_st_resmi(no_st_opsional, tgl_pelaksanaan_mulai.year, cur_tipe_ttd_k2, auto_adjust_unit=True)
+            if no_st_opsional
+            else f"( Pola Aktif: {pola_kode_st_k2} — Bisa diisi nanti di Tab 3 )"
+        )
 
         badge_durasi = (
             f"<span style='background:#DBEAFE; color:#1E3A8A; padding:2px 8px; border-radius:6px; font-weight:800;'>1 Hari</span>"
@@ -2026,9 +2152,10 @@ with tab_input:
         c_ttd_left, c_ttd_right = st.columns([1.2, 1])
         with c_ttd_left:
             tipe_ttd = st.radio(
-                "Format Jabatan Penandatangan:",
+                "Format Jabatan Penandatangan (Sekaligus Menentukan Format Kode Nomor ST):",
                 options=["a.n. Kepala Kantor (Kepala Subbagian Umum)", "Kepala Kantor Langsung"],
-                index=0
+                index=0,
+                key="in_tipe_ttd"
             )
             is_plh = st.checkbox("Bertindak sebagai Pelaksana Harian (Plh.)", value=False)
 
@@ -2056,8 +2183,11 @@ with tab_input:
                     nama_pejabat_ttd = st.text_input("Nama Kasubag Umum Definitif:", value="Kukuh Hanna Prapanca")
                     lbl_jab_ringkas = "a.n. Kepala Kantor — Kepala Subbagian Umum"
             
+            fmt_st_k4 = f"ST-xx/KBC.1201/{tgl_pelaksanaan.year}" if tipe_ttd == "Kepala Kantor Langsung" else f"ST-xx/KBC.1201/KBC.120101/{tgl_pelaksanaan.year}"
             st.markdown(
-                f'<div class="info-pill">✍️ <b>Format TTE:</b> {lbl_jab_ringkas}<br>👤 <b>Pejabat:</b> {nama_pejabat_ttd or "(Belum dipilih)"}</div>',
+                f'<div class="info-pill">✍️ <b>Format TTE:</b> {lbl_jab_ringkas}<br>'
+                f'👤 <b>Pejabat:</b> {nama_pejabat_ttd or "(Belum dipilih)"}<br>'
+                f'🔢 <b>Format Nomor ST:</b> <code>{fmt_st_k4}</code></div>',
                 unsafe_allow_html=True
             )
 
@@ -2085,9 +2215,12 @@ with tab_input:
                     ss = get_spreadsheet()
                     ws_target = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
                     
+                    # Pastikan baris yang sempat bergeser ke kolom AG (jika ada) dirapikan lebih dulu
+                    repair_shifted_rows_in_sheet1(ws_target)
                     col_no = ws_target.col_values(1)
                     existing_numbers = [int(x) for x in col_no if x.strip().isdigit()]
                     next_no = max(existing_numbers) + 1 if existing_numbers else 1
+                    target_row_s1 = len(col_no) + 1
 
                     petugas_row_data = []
                     for p_idx in range(6):
@@ -2097,7 +2230,12 @@ with tab_input:
                         else:
                             petugas_row_data.extend(["", "", ""])
 
-                    nomor_st_clean = format_nomor_st_resmi(no_st_opsional, tgl_pelaksanaan.year)
+                    nomor_st_clean = format_nomor_st_resmi(
+                        no_st_opsional,
+                        tgl_pelaksanaan.year,
+                        tipe_ttd=tipe_ttd,
+                        auto_adjust_unit=True
+                    )
 
                     row_payload = [
                         next_no,
@@ -2122,8 +2260,14 @@ with tab_input:
                         tgl_st_indo_str
                     ]
 
-                    # 1. Simpan ke Sheet1 (Database Surat Tugas)
-                    ws_target.append_row(row_payload, value_input_option="USER_ENTERED")
+                    # 1. Simpan ke Sheet1 secara eksplisit di Kolom A:AK (100% Anti Bergeser ke Kolom AG!)
+                    if target_row_s1 > ws_target.row_count:
+                        ws_target.add_rows(50)
+                    ws_target.update(
+                        f"A{target_row_s1}:AK{target_row_s1}",
+                        [row_payload],
+                        value_input_option="USER_ENTERED"
+                    )
 
                     # 2. Siapkan data gabungan untuk REKAP BAGIAN UMUM & DATA PERJADIN
                     perihal_rekap = kegiatan_1.strip() if kegiatan_1.strip() else strip_permohonan(permohonan_1)
@@ -2188,6 +2332,7 @@ with tab_input:
                         "is_plh": is_plh,
                         "nama_pejabat_ttd": nama_pejabat_ttd
                     }
+                    st.rerun()
             except Exception as err:
                 st.error(f"Gagal menyimpan ke Google Sheets: {err}")
 
@@ -2367,7 +2512,22 @@ with tab_riwayat:
                         st.caption(f"Pratinjau kalkulasi otomatis: **{auto_h_edit} / {auto_t_edit}**")
                         edit_hari = st.text_input("Hari Pelaksanaan (Teks di ST)*", value=selected_item["hari"])
                         edit_tgl_pelaks = st.text_input("Tanggal Pelaksanaan Tugas (Teks di ST)*", value=selected_item["tgl_pelaksanaan"])
-                        edit_no_st_resmi = st.text_input("Nomor ST Resmi (Satu Kemenkeu):", value=selected_item.get("nomor_st_resmi", ""))
+                        def_ttd_edit = detect_tipe_ttd_from_nost(selected_item.get("nomor_st_resmi", ""))
+                        opsi_ttd_edit = [
+                            "a.n. Kepala Kantor (Kepala Subbagian Umum)",
+                            "Kepala Kantor Langsung"
+                        ]
+                        edit_tipe_ttd_nost = st.radio(
+                            "Penandatangan ST (Penentu Format Nomor ST):",
+                            options=opsi_ttd_edit,
+                            index=1 if def_ttd_edit == "Kepala Kantor Langsung" else 0,
+                            horizontal=True,
+                            key=f"ed_ttd_nost_{selected_item['no_urut']}"
+                        )
+                        edit_no_st_resmi = st.text_input(
+                            "Nomor ST Resmi (Satu Kemenkeu — Cukup ketik angka misal 2041 atau nomor lengkap):",
+                            value=selected_item.get("nomor_st_resmi", "")
+                        )
                         
                         cur_p_names = [p["nama"] for p in selected_item["daftar_petugas"] if p["nama"] in list_pegawai]
                         edit_selected_names = st.multiselect(
@@ -2405,7 +2565,14 @@ with tab_riwayat:
 
                             if use_auto_date_edit:
                                 edit_hari, edit_tgl_pelaks, _ = format_hari_tanggal_pelaksanaan(edit_d_mulai, edit_d_akhir)
-                            no_st_fmt_edit = format_nomor_st_resmi(edit_no_st_resmi)
+                            d_ed_yr = parse_indo_date(edit_tgl_pelaks)
+                            yr_ed = d_ed_yr.year if d_ed_yr else 2026
+                            no_st_fmt_edit = format_nomor_st_resmi(
+                                edit_no_st_resmi,
+                                yr_ed,
+                                tipe_ttd=edit_tipe_ttd_nost,
+                                auto_adjust_unit=True
+                            )
                             tgl_st_rec = selected_item.get("tgl_st_resmi") or edit_tgl_surat1 or edit_tgl_pelaks
 
                             row_update = [
@@ -2504,7 +2671,7 @@ with tab_perjadin:
     with sub_rekap_st:
         with st.container(border=True):
             st.markdown('<div class="section-badge">1️⃣ Isi Cepat Nomor ST dari Satu Kemenkeu (Otomatis Update 3 Sheet)</div>', unsafe_allow_html=True)
-            st.caption("Pilih ST yang baru mendapat nomor dari aplikasi Satu Kemenkeu. Cukup ketik angkanya saja (contoh: `2013`), sistem otomatis melengkapi jadi `ST-2013/KBC.1201/KBC.120101/2026` dan mengupdate `Sheet1`, `REKAP BAGIAN UMUM`, serta `DATA PERJADIN`!")
+            st.caption("Pilih ST yang baru mendapat nomor dari Satu Kemenkeu. Cukup ketik angkanya saja (contoh: `2041`), pilih apakah ditandatangani **a.n. Kepala Kantor** (`ST-xx/KBC.1201/KBC.120101/2026`) atau **Kepala Kantor Langsung** (`ST-xx/KBC.1201/2026`), lalu klik Simpan!")
 
             if not riwayat_list_global:
                 st.info("Belum ada data Surat Tugas.")
@@ -2540,12 +2707,29 @@ with tab_perjadin:
                 pil_st_lbl = st.selectbox("Pilih Surat Tugas:", options=opsi_st_update, index=0, key="sel_fast_nost")
                 sel_st_obj = kandidat_st[opsi_st_update.index(pil_st_lbl)]
 
+                def_ttd_fast = detect_tipe_ttd_from_nost(sel_st_obj.get("cur_nost", ""))
+                pil_ttd_fast = st.radio(
+                    "✍️ Pejabat Penandatangan ST (Menentukan Format Kode Unit Nomor ST):",
+                    options=[
+                        "a.n. Kepala Kantor (Format: ST-xx/KBC.1201/KBC.120101/2026)",
+                        "Kepala Kantor Langsung (Format: ST-xx/KBC.1201/2026)"
+                    ],
+                    index=1 if def_ttd_fast == "Kepala Kantor Langsung" else 0,
+                    horizontal=True,
+                    key=f"fast_ttd_mode_{sel_st_obj['no_urut']}"
+                )
+                tipe_ttd_fast_clean = (
+                    "Kepala Kantor Langsung"
+                    if "Kepala Kantor Langsung" in pil_ttd_fast
+                    else "a.n. Kepala Kantor (Kepala Subbagian Umum)"
+                )
+
                 c_fn1, c_fn2, c_fn3 = st.columns([1.2, 1, 1])
                 with c_fn1:
                     input_angka_st = st.text_input(
                         "Ketik Nomor ST dari Satu Kemenkeu*:",
                         value=sel_st_obj.get("cur_nost", ""),
-                        placeholder="Ketik angka saja misal: 2013 atau ST-2013/...",
+                        placeholder="Ketik angka saja misal: 2041 atau ST-2041/...",
                         key=f"fast_nost_in_{sel_st_obj['no_urut']}"
                     )
                 with c_fn2:
@@ -2566,6 +2750,20 @@ with tab_perjadin:
                         key=f"fast_pet_in_{sel_st_obj['no_urut']}"
                     )
 
+                d_pel_prev = parse_indo_date(sel_st_obj["tgl_pelaksanaan"])
+                yr_pel_prev = d_pel_prev.year if d_pel_prev else 2026
+                live_prev_nost = format_nomor_st_resmi(
+                    input_angka_st,
+                    yr_pel_prev,
+                    tipe_ttd=tipe_ttd_fast_clean,
+                    auto_adjust_unit=True
+                )
+                if live_prev_nost:
+                    st.markdown(
+                        f'<div class="info-pill-ok">🔢 <b>Pratinjau Nomor ST Resmi yang Akan Disimpan:</b> <code>{live_prev_nost}</code></div>',
+                        unsafe_allow_html=True
+                    )
+
                 if st.button("💾 Simpan Nomor ST ke Sheet1 + REKAP BAGIAN UMUM + DATA PERJADIN", type="primary", use_container_width=True):
                     if not input_angka_st.strip():
                         st.error("⚠️ Masukkan Nomor ST terlebih dahulu!")
@@ -2575,7 +2773,12 @@ with tab_perjadin:
                                 ss = get_spreadsheet()
                                 d_pel = parse_indo_date(sel_st_obj["tgl_pelaksanaan"])
                                 yr_pel = d_pel.year if d_pel else 2026
-                                no_st_final = format_nomor_st_resmi(input_angka_st, yr_pel)
+                                no_st_final = format_nomor_st_resmi(
+                                    input_angka_st,
+                                    yr_pel,
+                                    tipe_ttd=tipe_ttd_fast_clean,
+                                    auto_adjust_unit=True
+                                )
 
                                 # 1. Update Sheet1 kolom AJ & AK (Kolom 36 & 37)
                                 ws_s1 = find_worksheet_flexible(ss, ["Sheet1", "SURAT TUGAS", "DATABASE ST"])
@@ -2697,7 +2900,15 @@ with tab_perjadin:
                 with st.form(f"form_perjadin_{sel_perj['row_num']}", clear_on_submit=False):
                     cp1, cp2 = st.columns(2)
                     with cp1:
-                        in_no_st_perj = st.text_input("Nomor ST (Kolom I):", value=sel_perj["no_st"], placeholder="Contoh: ST-2013/KBC.1201/KBC.120101/2026")
+                        def_ttd_perj = detect_tipe_ttd_from_nost(sel_perj["no_st"])
+                        in_ttd_perj = st.radio(
+                            "Format Kode Nomor ST:",
+                            options=["a.n. Kepala Kantor (KBC.1201/KBC.120101)", "Kepala Kantor Langsung (KBC.1201)"],
+                            index=1 if def_ttd_perj == "Kepala Kantor Langsung" else 0,
+                            horizontal=True,
+                            key=f"perj_ttd_fmt_{sel_perj['row_num']}"
+                        )
+                        in_no_st_perj = st.text_input("Nomor ST (Kolom I — Cukup ketik angka atau nomor lengkap):", value=sel_perj["no_st"], placeholder="Contoh: 2041 atau ST-2041/KBC.1201/2026")
                         in_id_keg = st.text_input("ID Kegiatan Perjadin (Kolom J)*:", value=sel_perj["id_kegiatan"], placeholder="Masukkan ID 24 karakter dari Bagian Umum...")
                         opsi_status_perj = [
                             "KIRIM PERTANGGUNGJAWABAN",
@@ -2727,7 +2938,8 @@ with tab_perjadin:
                             ws_p = find_worksheet_flexible(ss, ["DATA PERJADIN", "PERJADIN"])
                             r_p = sel_perj["row_num"]
 
-                            no_st_clean_p = format_nomor_st_resmi(in_no_st_perj)
+                            yr_p_row = sel_perj["date_obj"].year if sel_perj.get("date_obj") else 2026
+                            no_st_clean_p = format_nomor_st_resmi(in_no_st_perj, yr_p_row, tipe_ttd=("Kepala Kantor Langsung" if "Kepala Kantor Langsung" in in_ttd_perj else "a.n. Kepala Kantor"), auto_adjust_unit=True)
                             tidak_ada_st_val = False if (in_luar or in_dalam or no_st_clean_p or in_id_keg.strip()) else True
 
                             target_rows_perj = [sel_perj]
